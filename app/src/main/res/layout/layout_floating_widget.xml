@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:clipChildren="false">
+
+    <LinearLayout
+        android:id="@+id/menu_container"
+        android:layout_width="wrap_content"
+        android:layout_height="60dp"
+        android:orientation="horizontal"
+        android:visibility="gone"
+        android:gravity="center_vertical"
+        android:paddingStart="60dp"
+        android:paddingEnd="20dp"
+        android:background="@drawable/bg_menu_item">
+
+        <ImageButton
+            android:id="@+id/btnTranslate"
+            android:layout_width="45dp"
+            android:layout_height="45dp"
+            android:src="@android:drawable/ic_menu_camera"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Translate"
+            android:tint="#FFFFFF" />
+
+        <View android:layout_width="15dp" android:layout_height="match_parent" />
+
+        <ImageButton
+            android:id="@+id/btnHistory"
+            android:layout_width="45dp"
+            android:layout_height="45dp"
+            android:src="@android:drawable/ic_menu_recent_history"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="History"
+            android:tint="#FFFFFF" />
+    </LinearLayout>
+
+    <ImageView
+        android:id="@+id/main_bubble"
+        android:layout_width="60dp"
+        android:layout_height="60dp"
+        android:padding="12dp"
+        android:src="@android:drawable/ic_menu_add"
+        android:background="@drawable/bg_bubble"
+        android:elevation="5dp" />
+
+</FrameLayout>
