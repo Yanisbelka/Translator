@@ -1,7 +1,5 @@
 package com.miladghouila.proscanai;
 
-import android.animation.Animator;
-import android.animation.AnimatorListenerAdapter;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
@@ -32,8 +30,10 @@ import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
+import android.widget.ArrayAdapter;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.core.app.NotificationCompat;
@@ -49,17 +49,19 @@ import com.google.mlkit.vision.text.latin.TextRecognizerOptions;
 
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.List;
 
 public class FloatingControlService extends Service {
     private WindowManager windowManager;
-    private View floatingView, resultView;
+    private View floatingView, resultView, languageView;
     private ImageView deleteView;
-    private WindowManager.LayoutParams params, resultParams, deleteParams;
+    private WindowManager.LayoutParams params, resultParams, deleteParams, languageParams;
     private MediaProjectionManager projectionManager;
     private MediaProjection currentProjection;
     private int resultCode, screenWidth, screenHeight, screenDensity;
     private Intent resultData;
     private Translator translator;
+    private List<String> languageList = TranslateLanguage.getAllLanguages();
     private TextView txtResult;
     private Vibrator vibrator;
     private boolean isMenuOpen = false;
@@ -68,6 +70,8 @@ public class FloatingControlService extends Service {
     private ArrayList<String> historyList = new ArrayList<>();
     private final Handler actionHandler = new Handler(Looper.getMainLooper());
     private static boolean isRunning = false;
+    private Spinner listFrom;
+    private Spinner listTo;
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
@@ -107,23 +111,30 @@ public class FloatingControlService extends Service {
         screenHeight = dm.heightPixels;
         screenDensity = dm.densityDpi;
 
-        prepareTranslator();
+        prepareTranslator(TranslateLanguage.ENGLISH,TranslateLanguage.ARABIC);
         setupDeleteZone();
         setupFloatingView();
         setupResultView();
     }
-
+    private void prepareTranslator(String langFrom,String langTo) {
+        if(translator != null){
+            translator.close();
+        }
+        translator = Translation.getClient(new TranslatorOptions.Builder()
+                .setSourceLanguage(langFrom).setTargetLanguage(langTo).build());
+        translator.downloadModelIfNeeded(new DownloadConditions.Builder().build());
+    }
     private void setupDeleteZone() {
         deleteView = new ImageView(this);
         deleteView.setImageResource(R.drawable.main_button_circle);
-        deleteView.setPadding(40, 40, 40, 40);
+        deleteView.setPadding(16, 16, 16, 16);
         GradientDrawable gd = new GradientDrawable();
         gd.setShape(GradientDrawable.OVAL);
         gd.setColor(Color.parseColor("#AA000000"));
         deleteView.setBackground(gd);
         deleteView.setColorFilter(Color.WHITE);
 
-        deleteParams = new WindowManager.LayoutParams(220, 220, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+        deleteParams = new WindowManager.LayoutParams(110, 110, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT);
         deleteParams.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
         deleteParams.y = 100;
@@ -195,6 +206,11 @@ public class FloatingControlService extends Service {
         floatingView.findViewById(R.id.btnHistory).setOnClickListener(v -> {
             toggleMenu();
             showHistory();
+        });
+
+        floatingView.findViewById(R.id.btnLanguage).setOnClickListener(v ->{
+            toggleMenu();
+            languageMenu();
         });
     }
 
@@ -294,6 +310,30 @@ public class FloatingControlService extends Service {
         windowManager.addView(resultView, resultParams);
     }
 
+    private void languageMenu(){
+        languageView = LayoutInflater.from(this).inflate(R.layout.layout_language_list, null);
+        setupSpinner();
+        languageParams = new WindowManager.LayoutParams(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT);
+        languageParams.gravity = Gravity.TOP;
+        windowManager.addView(languageView, languageParams);
+        languageView.findViewById(R.id.btnConfirm).setOnClickListener(view -> {
+            prepareTranslator(listFrom.getSelectedItem().toString(), listTo.getSelectedItem().toString());
+            windowManager.removeView(languageView);
+            Toast.makeText(this, "Language changed", Toast.LENGTH_SHORT).show();
+        });
+    }
+    private void setupSpinner() {
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this,
+            android.R.layout.simple_spinner_item, languageList);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        listFrom = languageView.findViewById(R.id.listFrom);
+        listFrom.setAdapter(adapter);
+        listFrom.setSelection(12);
+        listTo = languageView.findViewById(R.id.listTo);
+        listTo.setAdapter(adapter);
+        listTo.setSelection(2);
+    }
     private void toggleMenu() {
         if (!isMenuOpen) {
             menuContainer.setVisibility(View.VISIBLE);
@@ -316,14 +356,12 @@ public class FloatingControlService extends Service {
             cb.setPrimaryClip(ClipData.newPlainText("ProScan", txtResult.getText()));
             Toast.makeText(this, "Copied!", Toast.LENGTH_SHORT).show();
         });
+        resultView.findViewById(R.id.btnHide).setOnClickListener(view -> {
+            windowManager.removeView(resultView);
+        });
         resultView.setOnClickListener(v -> { if(resultView.getParent() != null) windowManager.removeView(resultView); });
     }
 
-    private void prepareTranslator() {
-        translator = Translation.getClient(new TranslatorOptions.Builder()
-                .setSourceLanguage(TranslateLanguage.ENGLISH).setTargetLanguage(TranslateLanguage.ARABIC).build());
-        translator.downloadModelIfNeeded(new DownloadConditions.Builder().build());
-    }
 
     private void vibrate(int ms) {
         if (vibrator != null) {
