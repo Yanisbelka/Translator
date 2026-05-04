@@ -4,14 +4,11 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.Service;
-import android.content.ClipData;
-import android.content.ClipboardManager;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ServiceInfo;
 import android.graphics.Bitmap;
-import android.graphics.Color;
 import android.graphics.PixelFormat;
-import android.graphics.drawable.GradientDrawable;
 import android.hardware.display.DisplayManager;
 import android.hardware.display.VirtualDisplay;
 import android.media.Image;
@@ -22,56 +19,63 @@ import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
-import android.os.VibrationEffect;
-import android.os.Vibrator;
 import android.util.DisplayMetrics;
+import android.view.ContextThemeWrapper;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.WindowManager;
+import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
-import android.widget.ImageView;
-import android.widget.LinearLayout;
+import android.widget.ImageButton;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
+
 import androidx.core.app.NotificationCompat;
 
 import com.google.mlkit.common.model.DownloadConditions;
+import com.google.mlkit.common.model.RemoteModelManager;
+import com.google.mlkit.nl.languageid.LanguageIdentification;
+import com.google.mlkit.nl.languageid.LanguageIdentifier;
 import com.google.mlkit.nl.translate.TranslateLanguage;
+import com.google.mlkit.nl.translate.TranslateRemoteModel;
 import com.google.mlkit.nl.translate.Translation;
 import com.google.mlkit.nl.translate.Translator;
 import com.google.mlkit.nl.translate.TranslatorOptions;
 import com.google.mlkit.vision.common.InputImage;
 import com.google.mlkit.vision.text.TextRecognition;
+import com.google.mlkit.vision.text.TextRecognizer;
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions;
 
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.List;
 
 public class FloatingControlService extends Service {
+
     private WindowManager windowManager;
-    private View floatingView, resultView, languageView;
-    private ImageView deleteView;
-    private WindowManager.LayoutParams params, resultParams, deleteParams, languageParams;
+    private View mainLayout, selectionBox, bubbleView;
+    private WindowManager.LayoutParams mainParams, boxParams, bubbleParams;
+
+    private TextView textResult;
+    private Spinner languageSpinner;
+    private View btnTranslate, btnLanguage, btnHistory, cardResult;
+    private ImageButton btnBack;
+
+    private String targetLanguage = TranslateLanguage.FRENCH;
+    private TextRecognizer recognizer;
+    private LanguageIdentifier languageIdentifier;
+
     private MediaProjectionManager projectionManager;
     private MediaProjection currentProjection;
     private int resultCode, screenWidth, screenHeight, screenDensity;
     private Intent resultData;
-    private Translator translator;
-    private List<String> languageList = TranslateLanguage.getAllLanguages();
-    private TextView txtResult;
-    private Vibrator vibrator;
-    private boolean isMenuOpen = false;
-    private LinearLayout menuContainer;
 
-    private ArrayList<String> historyList = new ArrayList<>();
     private final Handler actionHandler = new Handler(Looper.getMainLooper());
     private static boolean isRunning = false;
-    private Spinner listFrom;
-    private Spinner listTo;
+    private boolean isInterfaceVisible = false;
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
@@ -87,15 +91,22 @@ public class FloatingControlService extends Service {
     }
 
     private void setupNotification() {
-        String channelId = "proscan_v1";
+        String channelId = "proscan_screen_v1";
         if (Build.VERSION.SDK_INT >= 26) {
-            NotificationChannel channel = new NotificationChannel(channelId, "ProScan Active", NotificationManager.IMPORTANCE_LOW);
+            NotificationChannel channel = new NotificationChannel(channelId, "Screen Translator", NotificationManager.IMPORTANCE_LOW);
             getSystemService(NotificationManager.class).createNotificationChannel(channel);
         }
         Notification n = new NotificationCompat.Builder(this, channelId)
-                .setContentTitle("ProScan AI Active").setSmallIcon(R.mipmap.ic_launcher).build();
-        if (Build.VERSION.SDK_INT >= 29) startForeground(1, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION);
-        else startForeground(1, n);
+                .setContentTitle("Screen Translator Active")
+                .setContentText("Tap the floating bubble to show/hide translator")
+                .setSmallIcon(R.mipmap.ic_launcher)
+                .build();
+        
+        if (Build.VERSION.SDK_INT >= 29) {
+            startForeground(1, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION);
+        } else {
+            startForeground(1, n);
+        }
     }
 
     @Override
@@ -103,7 +114,6 @@ public class FloatingControlService extends Service {
         super.onCreate();
         windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
         projectionManager = (MediaProjectionManager) getSystemService(MEDIA_PROJECTION_SERVICE);
-        vibrator = (Vibrator) getSystemService(VIBRATOR_SERVICE);
 
         DisplayMetrics dm = new DisplayMetrics();
         windowManager.getDefaultDisplay().getRealMetrics(dm);
@@ -111,262 +121,379 @@ public class FloatingControlService extends Service {
         screenHeight = dm.heightPixels;
         screenDensity = dm.densityDpi;
 
-        prepareTranslator(TranslateLanguage.ENGLISH,TranslateLanguage.ARABIC);
-        setupDeleteZone();
-        setupFloatingView();
-        setupResultView();
+        setupUI();
+        
+        recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
+        languageIdentifier = LanguageIdentification.getClient();
+        downloadCommonModels();
     }
-    private void prepareTranslator(String langFrom,String langTo) {
-        if(translator != null){
-            translator.close();
+
+    private void setupUI() {
+        ContextThemeWrapper contextThemeWrapper = new ContextThemeWrapper(this, R.style.Theme_ProScanAI);
+        LayoutInflater inflater = LayoutInflater.from(contextThemeWrapper);
+
+        // 1. Setup Selection Box Window
+        selectionBox = inflater.inflate(R.layout.layout_selection_box, null);
+        boxParams = new WindowManager.LayoutParams(
+                600, 400,
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                PixelFormat.TRANSLUCENT);
+        boxParams.gravity = Gravity.TOP | Gravity.START;
+        boxParams.x = (screenWidth - 600) / 2;
+        boxParams.y = screenHeight / 4;
+        selectionBox.setVisibility(View.GONE);
+        windowManager.addView(selectionBox, boxParams);
+        setupBoxTouchListeners();
+
+        // 2. Setup Controls Window (Bottom)
+        mainLayout = inflater.inflate(R.layout.layout_floating_screen, null);
+        mainParams = new WindowManager.LayoutParams(
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                PixelFormat.TRANSLUCENT);
+        mainParams.gravity = Gravity.BOTTOM;
+        mainLayout.setVisibility(View.GONE);
+        windowManager.addView(mainLayout, mainParams);
+
+        // 3. Setup Floating Bubble Window
+        bubbleView = inflater.inflate(R.layout.layout_floating_widget, null);
+        bubbleParams = new WindowManager.LayoutParams(
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.WRAP_CONTENT,
+                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                PixelFormat.TRANSLUCENT);
+        bubbleParams.gravity = Gravity.TOP | Gravity.START;
+        bubbleParams.x = 0;
+        bubbleParams.y = screenHeight / 2;
+        windowManager.addView(bubbleView, bubbleParams);
+        setupBubbleTouchListener();
+
+        // UI Mapping
+        textResult = mainLayout.findViewById(R.id.textResult);
+        cardResult = mainLayout.findViewById(R.id.cardResult);
+        languageSpinner = mainLayout.findViewById(R.id.languageSpinner);
+        btnTranslate = mainLayout.findViewById(R.id.btnTranslate);
+        btnLanguage = mainLayout.findViewById(R.id.btnLanguage);
+        btnHistory = mainLayout.findViewById(R.id.btnHistory);
+        btnBack = mainLayout.findViewById(R.id.btnBack);
+
+        btnBack.setOnClickListener(v -> stopSelf());
+
+        // Language Spinner Setup
+        List<LanguageUtils.LanguageItem> allLanguages = LanguageUtils.getSupportedLanguages(false);
+        ArrayAdapter<LanguageUtils.LanguageItem> adapter = new ArrayAdapter<>(this, R.layout.spinner_item, allLanguages);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        languageSpinner.setAdapter(adapter);
+
+        for (int i = 0; i < allLanguages.size(); i++) {
+            if (allLanguages.get(i).code.equals("fr")) {
+                languageSpinner.setSelection(i);
+                break;
+            }
         }
-        translator = Translation.getClient(new TranslatorOptions.Builder()
-                .setSourceLanguage(langFrom).setTargetLanguage(langTo).build());
-        translator.downloadModelIfNeeded(new DownloadConditions.Builder().build());
+
+        languageSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                targetLanguage = allLanguages.get(position).code;
+            }
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {}
+        });
+
+        btnLanguage.setOnClickListener(v -> {
+            mainParams.flags &= ~WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE;
+            windowManager.updateViewLayout(mainLayout, mainParams);
+            languageSpinner.performClick();
+        });
+
+        btnHistory.setOnClickListener(v -> {
+            Intent intent = new Intent(this, HistoryActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(intent);
+        });
+
+        btnTranslate.setOnClickListener(v -> {
+            textResult.setText("Scanning area...");
+            takeScreenshotAndProcess();
+        });
+
+        setupResizableResultCard();
     }
-    private void setupDeleteZone() {
-        deleteView = new ImageView(this);
-        deleteView.setImageResource(R.drawable.main_button_circle);
-        deleteView.setPadding(16, 16, 16, 16);
-        GradientDrawable gd = new GradientDrawable();
-        gd.setShape(GradientDrawable.OVAL);
-        gd.setColor(Color.parseColor("#AA000000"));
-        deleteView.setBackground(gd);
-        deleteView.setColorFilter(Color.WHITE);
 
-        deleteParams = new WindowManager.LayoutParams(110, 110, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT);
-        deleteParams.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
-        deleteParams.y = 100;
-        deleteView.setVisibility(View.GONE);
-        windowManager.addView(deleteView, deleteParams);
-    }
-
-    private void setupFloatingView() {
-        floatingView = LayoutInflater.from(this).inflate(R.layout.layout_floating_widget, null);
-        menuContainer = floatingView.findViewById(R.id.menu_container);
-        View mainBubble = floatingView.findViewById(R.id.main_bubble);
-
-        params = new WindowManager.LayoutParams(WindowManager.LayoutParams.WRAP_CONTENT, WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT);
-        params.gravity = Gravity.TOP | Gravity.START;
-        params.x = 100; params.y = 500;
-        windowManager.addView(floatingView, params);
-
+    private void setupBubbleTouchListener() {
+        View mainBubble = bubbleView.findViewById(R.id.main_bubble);
         mainBubble.setOnTouchListener(new View.OnTouchListener() {
             private int initialX, initialY;
             private float initialTouchX, initialTouchY;
-            private boolean isDragging = false;
-            private boolean isDeleting = false;
+            private long touchStartTime;
 
             @Override
             public boolean onTouch(View v, MotionEvent event) {
-                if (isDeleting) return false;
                 switch (event.getAction()) {
                     case MotionEvent.ACTION_DOWN:
-                        initialX = params.x; initialY = params.y;
-                        initialTouchX = event.getRawX(); initialTouchY = event.getRawY();
-                        isDragging = false;
-                        deleteView.setVisibility(View.VISIBLE);
+                        initialX = bubbleParams.x;
+                        initialY = bubbleParams.y;
+                        initialTouchX = event.getRawX();
+                        initialTouchY = event.getRawY();
+                        touchStartTime = System.currentTimeMillis();
                         return true;
                     case MotionEvent.ACTION_MOVE:
-                        float dX = event.getRawX() - initialTouchX;
-                        float dY = event.getRawY() - initialTouchY;
-                        if (Math.abs(dX) > 10 || Math.abs(dY) > 10) {
-                            isDragging = true;
-                            params.x = initialX + (int) dX;
-                            params.y = initialY + (int) dY;
-                            windowManager.updateViewLayout(floatingView, params);
-                            if (event.getRawY() > (screenHeight - 350)) {
-                                isDeleting = true;
-                                vibrate(100);
-                                floatingView.setVisibility(View.GONE);
-                                deleteView.animate().scaleX(1.5f).scaleY(1.5f).setDuration(100).withEndAction(() -> {
-                                    deleteView.animate().scaleX(0f).scaleY(0f).setDuration(100).withEndAction(() -> stopSelf()).start();
-                                }).start();
-                                return true;
-                            }
-                        }
+                        bubbleParams.x = initialX + (int) (event.getRawX() - initialTouchX);
+                        bubbleParams.y = initialY + (int) (event.getRawY() - initialTouchY);
+                        windowManager.updateViewLayout(bubbleView, bubbleParams);
                         return true;
                     case MotionEvent.ACTION_UP:
-                        deleteView.setVisibility(View.GONE);
-                        if (!isDragging) toggleMenu();
-                        isDragging = false;
+                        long duration = System.currentTimeMillis() - touchStartTime;
+                        float deltaX = Math.abs(event.getRawX() - initialTouchX);
+                        float deltaY = Math.abs(event.getRawY() - initialTouchY);
+                        
+                        if (duration < 200 && deltaX < 10 && deltaY < 10) {
+                            toggleInterface();
+                            v.performClick();
+                        }
+                        return true;
+                }
+                return false;
+            }
+        });
+    }
+
+    private void toggleInterface() {
+        isInterfaceVisible = !isInterfaceVisible;
+        if (isInterfaceVisible) {
+            mainLayout.setVisibility(View.VISIBLE);
+            selectionBox.setVisibility(View.VISIBLE);
+            ((android.widget.ImageView)bubbleView.findViewById(R.id.main_bubble)).setImageResource(android.R.drawable.ic_menu_close_clear_cancel);
+        } else {
+            mainLayout.setVisibility(View.GONE);
+            selectionBox.setVisibility(View.GONE);
+            ((android.widget.ImageView)bubbleView.findViewById(R.id.main_bubble)).setImageResource(android.R.drawable.ic_menu_add);
+        }
+    }
+
+    private void setupBoxTouchListeners() {
+        View resizeHandle = selectionBox.findViewById(R.id.resizeHandle);
+        View boxRoot = selectionBox.findViewById(R.id.boxRoot);
+
+        boxRoot.setOnTouchListener(new View.OnTouchListener() {
+            private int initialX, initialY;
+            private float initialTouchX, initialTouchY;
+
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                switch (event.getAction()) {
+                    case MotionEvent.ACTION_DOWN:
+                        initialX = boxParams.x;
+                        initialY = boxParams.y;
+                        initialTouchX = event.getRawX();
+                        initialTouchY = event.getRawY();
+                        return true;
+                    case MotionEvent.ACTION_MOVE:
+                        boxParams.x = initialX + (int) (event.getRawX() - initialTouchX);
+                        boxParams.y = initialY + (int) (event.getRawY() - initialTouchY);
+                        windowManager.updateViewLayout(selectionBox, boxParams);
+                        return true;
+                    case MotionEvent.ACTION_UP:
+                        v.performClick();
                         return true;
                 }
                 return false;
             }
         });
 
-        floatingView.findViewById(R.id.btnTranslate).setOnClickListener(v -> {
-            toggleMenu();
-            takeScreenshotAndProcess();
-        });
+        resizeHandle.setOnTouchListener(new View.OnTouchListener() {
+            private int initialWidth, initialHeight;
+            private float initialTouchX, initialTouchY;
 
-        floatingView.findViewById(R.id.btnHistory).setOnClickListener(v -> {
-            toggleMenu();
-            showHistory();
-        });
-
-        floatingView.findViewById(R.id.btnLanguage).setOnClickListener(v ->{
-            toggleMenu();
-            languageMenu();
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                switch (event.getAction()) {
+                    case MotionEvent.ACTION_DOWN:
+                        initialWidth = boxParams.width;
+                        initialHeight = boxParams.height;
+                        initialTouchX = event.getRawX();
+                        initialTouchY = event.getRawY();
+                        return true;
+                    case MotionEvent.ACTION_MOVE:
+                        boxParams.width = Math.max(200, initialWidth + (int) (event.getRawX() - initialTouchX));
+                        boxParams.height = Math.max(150, initialHeight + (int) (event.getRawY() - initialTouchY));
+                        windowManager.updateViewLayout(selectionBox, boxParams);
+                        return true;
+                    case MotionEvent.ACTION_UP:
+                        v.performClick();
+                        return true;
+                }
+                return false;
+            }
         });
     }
 
-    // THE DAMN SCREENSHOT LOGIC
+    private void setupResizableResultCard() {
+        cardResult.setOnTouchListener(new View.OnTouchListener() {
+            private int initialWidth, initialHeight;
+            private float initialTouchX, initialTouchY;
+            private boolean isResizing = false;
+            private static final int TOUCH_THRESHOLD = 60;
+
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                switch (event.getAction()) {
+                    case MotionEvent.ACTION_DOWN:
+                        float x = event.getX();
+                        float y = event.getY();
+                        if (x > v.getWidth() - TOUCH_THRESHOLD || x < TOUCH_THRESHOLD || y < TOUCH_THRESHOLD) {
+                            isResizing = true;
+                            initialWidth = v.getWidth();
+                            initialHeight = v.getHeight();
+                            initialTouchX = event.getRawX();
+                            initialTouchY = event.getRawY();
+                            mainParams.flags &= ~WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE;
+                            windowManager.updateViewLayout(mainLayout, mainParams);
+                            return true;
+                        }
+                        break;
+                    case MotionEvent.ACTION_MOVE:
+                        if (isResizing) {
+                            int newWidth = initialWidth + (int) (Math.abs(event.getRawX() - initialTouchX) * 2);
+                            int newHeight = initialHeight + (int) (initialTouchY - event.getRawY());
+                            ViewGroup.LayoutParams lp = v.getLayoutParams();
+                            lp.width = Math.min(newWidth, screenWidth - 40);
+                            lp.height = Math.max(200, newHeight);
+                            v.setLayoutParams(lp);
+                            return true;
+                        }
+                        break;
+                    case MotionEvent.ACTION_UP:
+                        isResizing = false;
+                        mainParams.flags |= WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE;
+                        windowManager.updateViewLayout(mainLayout, mainParams);
+                        v.performClick();
+                        return true;
+                }
+                return false;
+            }
+        });
+    }
+
     private void takeScreenshotAndProcess() {
-        if (resultData == null) {
-            Toast.makeText(this, "Permission Error", Toast.LENGTH_SHORT).show();
-            return;
-        }
+        if (resultData == null) return;
+        mainLayout.setVisibility(View.GONE);
+        selectionBox.setVisibility(View.GONE);
+        bubbleView.setVisibility(View.GONE);
 
-        // 1. Hide the bubble so it's not in the screenshot
-        floatingView.setVisibility(View.GONE);
-
-        // 2. Wait a bit for the UI to actually disappear
         actionHandler.postDelayed(() -> {
             try {
                 currentProjection = projectionManager.getMediaProjection(resultCode, (Intent) resultData.clone());
+                if (currentProjection == null) {
+                    restoreUI();
+                    return;
+                }
 
-                // Set up the reader with screen dimensions
                 final ImageReader reader = ImageReader.newInstance(screenWidth, screenHeight, PixelFormat.RGBA_8888, 2);
-                VirtualDisplay virtualDisplay = currentProjection.createVirtualDisplay("ScreenCapture",
-                        screenWidth, screenHeight, screenDensity,
-                        DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-                        reader.getSurface(), null, null);
+                VirtualDisplay virtualDisplay = currentProjection.createVirtualDisplay("Capture", screenWidth, screenHeight, screenDensity,
+                        DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, reader.getSurface(), null, null);
 
                 reader.setOnImageAvailableListener(new ImageReader.OnImageAvailableListener() {
+                    private boolean captured = false;
                     @Override
                     public void onImageAvailable(ImageReader reader) {
-                        Image image = reader.acquireLatestImage();
-                        if (image != null) {
-                            processScreenshot(image);
-                            image.close();
-                            reader.close();
-                            virtualDisplay.release();
-                            currentProjection.stop();
-                        }
+                        if (captured) return;
+                        Image img = null;
+                        try {
+                            img = reader.acquireLatestImage();
+                            if (img != null) {
+                                captured = true;
+                                processScreenshot(img);
+                                img.close(); reader.close(); virtualDisplay.release();
+                                currentProjection.stop(); currentProjection = null;
+                            }
+                        } catch (Exception e) { if (img != null) img.close(); }
                     }
                 }, actionHandler);
-            } catch (Exception e) {
-                floatingView.setVisibility(View.VISIBLE);
-                Toast.makeText(this, "Capture Failed", Toast.LENGTH_SHORT).show();
-            }
+            } catch (Exception e) { restoreUI(); }
         }, 300);
     }
 
+    private void restoreUI() {
+        if (isInterfaceVisible) {
+            mainLayout.setVisibility(View.VISIBLE);
+            selectionBox.setVisibility(View.VISIBLE);
+        }
+        bubbleView.setVisibility(View.VISIBLE);
+    }
+
     private void processScreenshot(Image image) {
-        // Convert Image to Bitmap
-        Image.Plane[] planes = image.getPlanes();
-        ByteBuffer buffer = planes[0].getBuffer();
-        int pixelStride = planes[0].getPixelStride();
-        int rowStride = planes[0].getRowStride();
-        int rowPadding = rowStride - pixelStride * screenWidth;
+        try {
+            Image.Plane[] planes = image.getPlanes();
+            ByteBuffer buffer = planes[0].getBuffer();
+            int pixelStride = planes[0].getPixelStride();
+            int rowStride = planes[0].getRowStride();
+            int rowPadding = rowStride - pixelStride * screenWidth;
 
-        Bitmap bitmap = Bitmap.createBitmap(screenWidth + rowPadding / pixelStride, screenHeight, Bitmap.Config.ARGB_8888);
-        bitmap.copyPixelsFromBuffer(buffer);
+            Bitmap fullBitmap = Bitmap.createBitmap(screenWidth + rowPadding / pixelStride, screenHeight, Bitmap.Config.ARGB_8888);
+            fullBitmap.copyPixelsFromBuffer(buffer);
 
-        // Crop it to exact screen size (removes stride padding)
-        Bitmap finalBitmap = Bitmap.createBitmap(bitmap, 0, 0, screenWidth, screenHeight);
+            int cropX = Math.max(0, boxParams.x);
+            int cropY = Math.max(0, boxParams.y);
+            int cropW = Math.min(boxParams.width, screenWidth - cropX);
+            int cropH = Math.min(boxParams.height, screenHeight - cropY);
 
-        // Feed to ML Kit
-        TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-                .process(InputImage.fromBitmap(finalBitmap, 0))
-                .addOnSuccessListener(visionText -> {
-                    floatingView.setVisibility(View.VISIBLE); // Bring bubble back
-                    if (!visionText.getText().isEmpty()) {
-                        translateText(visionText.getText());
-                    } else {
-                        Toast.makeText(this, "No text found", Toast.LENGTH_SHORT).show();
-                    }
-                })
-                .addOnFailureListener(e -> {
-                    floatingView.setVisibility(View.VISIBLE);
-                });
+            Bitmap croppedBitmap = Bitmap.createBitmap(fullBitmap, cropX, cropY, cropW, cropH);
+            fullBitmap.recycle();
+
+            InputImage inputImage = InputImage.fromBitmap(croppedBitmap, 0);
+            recognizer.process(inputImage)
+                    .addOnSuccessListener(text -> {
+                        restoreUI();
+                        String content = text.getText();
+                        if (content != null && !content.trim().isEmpty()) {
+                            translateText(content);
+                        } else {
+                            textResult.setText("No text found in Scan Area");
+                            cardResult.setVisibility(View.VISIBLE);
+                        }
+                    })
+                    .addOnFailureListener(e -> {
+                        restoreUI();
+                        textResult.setText("Scan failed");
+                    });
+        } catch (Exception e) { restoreUI(); }
     }
 
-    private void translateText(String text) {
-        translator.translate(text).addOnSuccessListener(translatedText -> {
-            historyList.add(translatedText);
-            txtResult.setText(translatedText);
-            if (resultView.getParent() != null) windowManager.removeView(resultView);
-            windowManager.addView(resultView, resultParams);
-        });
+    private void translateText(String input) {
+        languageIdentifier.identifyLanguage(input)
+                .addOnSuccessListener(code -> performTranslation(input, code.equals("und") ? "en" : code))
+                .addOnFailureListener(e -> performTranslation(input, "en"));
     }
 
-    private void showHistory() {
-        if (historyList.isEmpty()) {
-            Toast.makeText(this, "Empty history", Toast.LENGTH_SHORT).show();
-            return;
-        }
-        StringBuilder sb = new StringBuilder("Recent:\n");
-        int start = Math.max(0, historyList.size() - 5);
-        for (int i = historyList.size() - 1; i >= start; i--) {
-            sb.append("• ").append(historyList.get(i)).append("\n");
-        }
-        txtResult.setText(sb.toString());
-        if (resultView.getParent() != null) windowManager.removeView(resultView);
-        windowManager.addView(resultView, resultParams);
+    private void performTranslation(String input, String sourceCode) {
+        TranslatorOptions options = new TranslatorOptions.Builder()
+                .setSourceLanguage(sourceCode).setTargetLanguage(targetLanguage).build();
+        Translator t = Translation.getClient(options);
+        t.downloadModelIfNeeded().addOnSuccessListener(unused -> {
+            t.translate(input).addOnSuccessListener(result -> {
+                textResult.setText(result);
+                cardResult.setVisibility(View.VISIBLE);
+                HistoryManager.saveTranslation(this, result);
+                t.close();
+            }).addOnFailureListener(e -> {
+                textResult.setText(input);
+                cardResult.setVisibility(View.VISIBLE);
+                t.close();
+            });
+        }).addOnFailureListener(e -> t.close());
     }
 
-    private void languageMenu(){
-        languageView = LayoutInflater.from(this).inflate(R.layout.layout_language_list, null);
-        setupSpinner();
-        languageParams = new WindowManager.LayoutParams(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT);
-        languageParams.gravity = Gravity.TOP;
-        windowManager.addView(languageView, languageParams);
-        languageView.findViewById(R.id.btnConfirm).setOnClickListener(view -> {
-            prepareTranslator(listFrom.getSelectedItem().toString(), listTo.getSelectedItem().toString());
-            windowManager.removeView(languageView);
-            Toast.makeText(this, "Language changed", Toast.LENGTH_SHORT).show();
-        });
-    }
-    private void setupSpinner() {
-        ArrayAdapter<String> adapter = new ArrayAdapter<>(this,
-            android.R.layout.simple_spinner_item, languageList);
-        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
-        listFrom = languageView.findViewById(R.id.listFrom);
-        listFrom.setAdapter(adapter);
-        listFrom.setSelection(12);
-        listTo = languageView.findViewById(R.id.listTo);
-        listTo.setAdapter(adapter);
-        listTo.setSelection(2);
-    }
-    private void toggleMenu() {
-        if (!isMenuOpen) {
-            menuContainer.setVisibility(View.VISIBLE);
-            menuContainer.setAlpha(0f);
-            menuContainer.animate().alpha(1f).setDuration(200).start();
-        } else {
-            menuContainer.setVisibility(View.GONE);
-        }
-        isMenuOpen = !isMenuOpen;
-    }
-
-    private void setupResultView() {
-        resultView = LayoutInflater.from(this).inflate(R.layout.layout_translation_result, null);
-        resultParams = new WindowManager.LayoutParams(WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.WRAP_CONTENT,
-                WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT);
-        resultParams.gravity = Gravity.BOTTOM;
-        txtResult = resultView.findViewById(R.id.txtTranslatedResult);
-        resultView.findViewById(R.id.btnCopy).setOnClickListener(v -> {
-            ClipboardManager cb = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
-            cb.setPrimaryClip(ClipData.newPlainText("ProScan", txtResult.getText()));
-            Toast.makeText(this, "Copied!", Toast.LENGTH_SHORT).show();
-        });
-        resultView.findViewById(R.id.btnHide).setOnClickListener(view -> {
-            windowManager.removeView(resultView);
-        });
-        resultView.setOnClickListener(v -> { if(resultView.getParent() != null) windowManager.removeView(resultView); });
-    }
-
-
-    private void vibrate(int ms) {
-        if (vibrator != null) {
-            if (Build.VERSION.SDK_INT >= 26) vibrator.vibrate(VibrationEffect.createOneShot(ms, 150));
-            else vibrator.vibrate(ms);
+    private void downloadCommonModels() {
+        RemoteModelManager modelManager = RemoteModelManager.getInstance();
+        DownloadConditions conditions = new DownloadConditions.Builder().requireWifi().build();
+        for (String code : LanguageUtils.getCommonLanguageCodes()) {
+            modelManager.download(new TranslateRemoteModel.Builder(code).build(), conditions);
         }
     }
 
@@ -374,10 +501,12 @@ public class FloatingControlService extends Service {
     public void onDestroy() {
         super.onDestroy();
         isRunning = false;
-        if (floatingView != null && floatingView.getParent() != null) windowManager.removeView(floatingView);
-        if (deleteView != null && deleteView.getParent() != null) windowManager.removeView(deleteView);
-        if (resultView != null && resultView.getParent() != null) windowManager.removeView(resultView);
+        if (mainLayout != null) windowManager.removeView(mainLayout);
+        if (selectionBox != null) windowManager.removeView(selectionBox);
+        if (bubbleView != null) windowManager.removeView(bubbleView);
+        if (recognizer != null) recognizer.close();
+        if (languageIdentifier != null) languageIdentifier.close();
     }
 
-    @Override public IBinder onBind(Intent i) { return null; }
+    @Override public IBinder onBind(Intent intent) { return null; }
 }
