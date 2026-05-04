@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="primary">#D0BCFF</color>
+    <color name="primary_variant">#381E72</color>
+    <color name="secondary">#CCC2DC</color>
+    <color name="background">#1C1B1F</color>
+    <color name="surface">#252329</color>
+    <color name="on_primary">#381E72</color>
+    <color name="on_secondary">#332D41</color>
+    <color name="glass_bg">#EE1A1A1A</color>
+</resources>

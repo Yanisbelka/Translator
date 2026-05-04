@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/boxRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg_selection_box">
+
+    <ImageView
+        android:id="@+id/resizeHandle"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_gravity="bottom|end"
+        android:padding="8dp"
+        android:src="@android:drawable/ic_menu_crop"
+        android:alpha="0.7"
+        android:contentDescription="Resize" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top|center_horizontal"
+        android:layout_marginTop="4dp"
+        android:text="Scan Area"
+        android:textColor="#7C4DFF"
+        android:textSize="10sp"
+        android:textAllCaps="true"
+        android:textStyle="bold"
+        android:alpha="0.6"/>
+
+</FrameLayout>
