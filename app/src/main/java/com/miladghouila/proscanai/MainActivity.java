@@ -41,6 +41,10 @@ import com.google.mlkit.nl.translate.TranslateRemoteModel;
 import com.google.mlkit.vision.common.InputImage;
 import com.google.mlkit.vision.text.TextRecognition;
 import com.google.mlkit.vision.text.TextRecognizer;
+import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions;
+import com.google.mlkit.vision.text.devanagari.DevanagariTextRecognizerOptions;
+import com.google.mlkit.vision.text.japanese.JapaneseTextRecognizerOptions;
+import com.google.mlkit.vision.text.korean.KoreanTextRecognizerOptions;
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions;
 
 import java.util.List;
@@ -50,12 +54,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class MainActivity extends AppCompatActivity {
 
     private PreviewView previewView;
-    private TextView textResult;
+    private TextView textResult, txtCurrentLang;
     private Spinner languageSpinner;
-    private View btnTranslate, btnLanguage, btnHistory, cardResult;
+    private View btnTranslate, btnLanguage, btnHistory, cardResult, btnOcrScript;
     private ImageButton btnBack;
 
     private String targetLanguage = TranslateLanguage.FRENCH;
+    private int currentOcrMode = 0; // 0: Latin, 1: Chinese, 2: Japanese, 3: Korean, 4: Devanagari
     private TextRecognizer recognizer;
     private LanguageIdentifier languageIdentifier;
 
@@ -79,13 +84,45 @@ public class MainActivity extends AppCompatActivity {
         previewView = findViewById(R.id.previewView);
         textResult = findViewById(R.id.textResult);
         cardResult = findViewById(R.id.cardResult);
+        txtCurrentLang = findViewById(R.id.txtCurrentLang);
         languageSpinner = findViewById(R.id.languageSpinner);
         btnTranslate = findViewById(R.id.btnTranslate);
         btnLanguage = findViewById(R.id.btnLanguage);
         btnHistory = findViewById(R.id.btnHistory);
         btnBack = findViewById(R.id.btnBack);
+        btnOcrScript = findViewById(R.id.btnOcrScript);
 
         btnBack.setOnClickListener(v -> finish());
+
+        btnOcrScript.setOnClickListener(v -> {
+            currentOcrMode = (currentOcrMode + 1) % 5;
+            if (recognizer != null) recognizer.close();
+
+            String modeName = "Latin";
+            switch (currentOcrMode) {
+                case 0:
+                    recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
+                    modeName = "Latin (Western)";
+                    break;
+                case 1:
+                    recognizer = TextRecognition.getClient(new ChineseTextRecognizerOptions.Builder().build());
+                    modeName = "Chinese";
+                    break;
+                case 2:
+                    recognizer = TextRecognition.getClient(new JapaneseTextRecognizerOptions.Builder().build());
+                    modeName = "Japanese";
+                    break;
+                case 3:
+                    recognizer = TextRecognition.getClient(new KoreanTextRecognizerOptions.Builder().build());
+                    modeName = "Korean";
+                    break;
+                case 4:
+                    recognizer = TextRecognition.getClient(new DevanagariTextRecognizerOptions.Builder().build());
+                    modeName = "Devanagari (Hindi)";
+                    break;
+            }
+            Toast.makeText(this, "Camera OCR: " + modeName, Toast.LENGTH_SHORT).show();
+        });
 
         // Setup language spinner with ALL languages
         List<LanguageUtils.LanguageItem> allLanguages = LanguageUtils.getSupportedLanguages(false);
@@ -98,6 +135,7 @@ public class MainActivity extends AppCompatActivity {
         for (int i = 0; i < allLanguages.size(); i++) {
             if (allLanguages.get(i).code.equals("fr")) {
                 languageSpinner.setSelection(i);
+                if (txtCurrentLang != null) txtCurrentLang.setText("FR");
                 break;
             }
         }
@@ -106,6 +144,9 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 targetLanguage = allLanguages.get(position).code;
+                if (txtCurrentLang != null) {
+                    txtCurrentLang.setText(targetLanguage.toUpperCase());
+                }
             }
 
             @Override
@@ -211,15 +252,15 @@ public class MainActivity extends AppCompatActivity {
                             float deltaY = initialTouchY - event.getRawY();
 
                             ViewGroup.LayoutParams params = v.getLayoutParams();
-                            
+
                             // Horizontal Resize: Restrict width to screen width minus margins
                             int newWidth = Math.max(300, initialWidth + (int)(Math.abs(deltaX) * 2));
                             params.width = Math.min(newWidth, screenWidth - horizontalPadding);
-                            
+
                             // Vertical Resize: Restrict height to half screen height (or reasonable limit)
                             int newHeight = Math.max(200, initialHeight + (int)deltaY);
                             params.height = Math.min(newHeight, screenHeight / 2);
-                            
+
                             v.setLayoutParams(params);
                             return true;
                         }
@@ -281,9 +322,11 @@ public class MainActivity extends AppCompatActivity {
                     .addOnSuccessListener(text -> {
                         String fullText = text.getText();
                         if (fullText != null && !fullText.trim().isEmpty()) {
-                            translateText(fullText);
+                            // Professional cleaning: Keep only letters, numbers, spaces, and basic punctuation
+                            fullText = fullText.replaceAll("[^\\p{L}\\p{N}\\s.,!?;:'\"\\-()\\n]", "");
+                            translateText(fullText.trim());
                         } else {
-                            textResult.setText("No text detected");
+                            textResult.setText("No text detected in view");
                         }
                     })
                     .addOnFailureListener(e -> {
@@ -334,18 +377,18 @@ public class MainActivity extends AppCompatActivity {
                     }
                 } else {
                     t.translate(line)
-                        .addOnSuccessListener(result -> {
-                            translatedLines[index] = result;
-                            if (count.incrementAndGet() == lines.length) {
-                                finishTranslation(translatedLines, t);
-                            }
-                        })
-                        .addOnFailureListener(e -> {
-                            translatedLines[index] = line; // fallback to original
-                            if (count.incrementAndGet() == lines.length) {
-                                finishTranslation(translatedLines, t);
-                            }
-                        });
+                            .addOnSuccessListener(result -> {
+                                translatedLines[index] = result;
+                                if (count.incrementAndGet() == lines.length) {
+                                    finishTranslation(translatedLines, t);
+                                }
+                            })
+                            .addOnFailureListener(e -> {
+                                translatedLines[index] = line; // fallback to original
+                                if (count.incrementAndGet() == lines.length) {
+                                    finishTranslation(translatedLines, t);
+                                }
+                            });
                 }
             }
         }).addOnFailureListener(e -> {

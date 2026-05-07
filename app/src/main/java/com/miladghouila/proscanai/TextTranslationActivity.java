@@ -34,6 +34,7 @@ public class TextTranslationActivity extends AppCompatActivity {
     private String targetLangCode = TranslateLanguage.FRENCH;
     private LanguageIdentifier languageIdentifier;
     private TextToSpeech tts;
+    private List<LanguageUtils.LanguageItem> fromLangs, toLangs;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -45,6 +46,7 @@ public class TextTranslationActivity extends AppCompatActivity {
         cardResult = findViewById(R.id.cardResult);
         spinnerFrom = findViewById(R.id.spinnerFrom);
         spinnerTo = findViewById(R.id.spinnerTo);
+        View btnSwap = findViewById(R.id.btnSwap);
 
         findViewById(R.id.btnBack).setOnClickListener(v -> finish());
 
@@ -69,18 +71,44 @@ public class TextTranslationActivity extends AppCompatActivity {
         });
 
         // Setup Source Spinner (with Auto)
-        List<LanguageUtils.LanguageItem> fromLangs = LanguageUtils.getSupportedLanguages(true);
+        fromLangs = LanguageUtils.getSupportedLanguages(true);
         ArrayAdapter<LanguageUtils.LanguageItem> adapterFrom = new ArrayAdapter<>(this,
                 android.R.layout.simple_spinner_item, fromLangs);
         adapterFrom.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerFrom.setAdapter(adapterFrom);
         
         // Setup Target Spinner (without Auto)
-        List<LanguageUtils.LanguageItem> toLangs = LanguageUtils.getSupportedLanguages(false);
+        toLangs = LanguageUtils.getSupportedLanguages(false);
         ArrayAdapter<LanguageUtils.LanguageItem> adapterTo = new ArrayAdapter<>(this,
                 android.R.layout.simple_spinner_item, toLangs);
         adapterTo.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         spinnerTo.setAdapter(adapterTo);
+
+        // Language Swap Logic
+        btnSwap.setOnClickListener(v -> {
+            if (sourceLangCode.equals("auto")) {
+                Toast.makeText(this, "Cannot swap with Auto Detect", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            String oldSource = sourceLangCode;
+            String oldTarget = targetLangCode;
+
+            // Update Spinners
+            for (int i = 0; i < fromLangs.size(); i++) {
+                if (fromLangs.get(i).code.equals(oldTarget)) {
+                    spinnerFrom.setSelection(i);
+                    break;
+                }
+            }
+            for (int i = 0; i < toLangs.size(); i++) {
+                if (toLangs.get(i).code.equals(oldSource)) {
+                    spinnerTo.setSelection(i);
+                    break;
+                }
+            }
+            Toast.makeText(this, "Languages Swapped", Toast.LENGTH_SHORT).show();
+        });
 
         // Default Target to French
         for (int i = 0; i < toLangs.size(); i++) {
@@ -94,6 +122,7 @@ public class TextTranslationActivity extends AppCompatActivity {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 sourceLangCode = fromLangs.get(position).code;
+                triggerTranslation();
             }
             @Override
             public void onNothingSelected(AdapterView<?> parent) {}
@@ -103,6 +132,7 @@ public class TextTranslationActivity extends AppCompatActivity {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 targetLangCode = toLangs.get(position).code;
+                triggerTranslation();
             }
             @Override
             public void onNothingSelected(AdapterView<?> parent) {}
@@ -110,19 +140,7 @@ public class TextTranslationActivity extends AppCompatActivity {
 
         languageIdentifier = LanguageIdentification.getClient();
 
-        findViewById(R.id.btnTranslate).setOnClickListener(v -> {
-            String input = editSource.getText().toString().trim();
-            if (input.isEmpty()) {
-                Toast.makeText(this, "Please enter some text", Toast.LENGTH_SHORT).show();
-                return;
-            }
-            
-            if (sourceLangCode.equals("auto")) {
-                detectAndTranslate(input);
-            } else {
-                performTranslation(input, sourceLangCode);
-            }
-        });
+        findViewById(R.id.btnTranslate).setOnClickListener(v -> triggerTranslation());
 
         findViewById(R.id.btnCopy).setOnClickListener(v -> {
             ClipboardManager cb = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
@@ -145,10 +163,20 @@ public class TextTranslationActivity extends AppCompatActivity {
         });
     }
 
+    private void triggerTranslation() {
+        String input = editSource.getText().toString().trim();
+        if (input.isEmpty()) return;
+
+        cardResult.setVisibility(View.VISIBLE);
+        if (sourceLangCode.equals("auto")) {
+            detectAndTranslate(input);
+        } else {
+            performTranslation(input, sourceLangCode);
+        }
+    }
+
     private void detectAndTranslate(String text) {
         txtResult.setText("Identifying language...");
-        cardResult.setVisibility(View.VISIBLE);
-
         languageIdentifier.identifyLanguage(text)
                 .addOnSuccessListener(languageCode -> {
                     if (languageCode.equals("und")) {
@@ -161,27 +189,63 @@ public class TextTranslationActivity extends AppCompatActivity {
     }
 
     private void performTranslation(String text, String sourceCode) {
+        if (sourceCode.equals(targetLangCode)) {
+            txtResult.setText(text);
+            return;
+        }
+
         txtResult.setText("Translating...");
-        
         TranslatorOptions options = new TranslatorOptions.Builder()
                 .setSourceLanguage(sourceCode)
                 .setTargetLanguage(targetLangCode)
                 .build();
         
         Translator t = Translation.getClient(options);
-        t.downloadModelIfNeeded().addOnSuccessListener(unused -> {
-            t.translate(text)
-                    .addOnSuccessListener(translated -> {
-                        txtResult.setText(translated);
-                        HistoryManager.saveTranslation(this, translated);
-                        t.close();
-                    })
-                    .addOnFailureListener(e -> {
-                        txtResult.setText("Error: " + e.getMessage());
-                        t.close();
+        com.google.mlkit.common.model.DownloadConditions conditions = new com.google.mlkit.common.model.DownloadConditions.Builder().build();
+        
+        t.downloadModelIfNeeded(conditions).addOnSuccessListener(unused -> {
+            String[] lines = text.split("\n");
+            final String[] translatedLines = new String[lines.length];
+            final java.util.concurrent.atomic.AtomicInteger count = new java.util.concurrent.atomic.AtomicInteger(0);
+
+            for (int i = 0; i < lines.length; i++) {
+                final int index = i;
+                String line = lines[i];
+                if (line.trim().isEmpty()) {
+                    translatedLines[index] = line;
+                    if (count.incrementAndGet() == lines.length) {
+                        finishActivityTranslation(translatedLines, t);
+                    }
+                } else {
+                    t.translate(line).addOnSuccessListener(result -> {
+                        translatedLines[index] = result;
+                        if (count.incrementAndGet() == lines.length) {
+                            finishActivityTranslation(translatedLines, t);
+                        }
+                    }).addOnFailureListener(e -> {
+                        translatedLines[index] = line;
+                        if (count.incrementAndGet() == lines.length) {
+                            finishActivityTranslation(translatedLines, t);
+                        }
                     });
+                }
+            }
         }).addOnFailureListener(e -> {
-            txtResult.setText("Error downloading model");
+            txtResult.setText("Error: " + e.getMessage());
+            t.close();
+        });
+    }
+
+    private void finishActivityTranslation(String[] lines, Translator t) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < lines.length; i++) {
+            sb.append(lines[i]);
+            if (i < lines.length - 1) sb.append("\n");
+        }
+        String finalResult = sb.toString();
+        runOnUiThread(() -> {
+            txtResult.setText(finalResult);
+            HistoryManager.saveTranslation(this, finalResult);
             t.close();
         });
     }
