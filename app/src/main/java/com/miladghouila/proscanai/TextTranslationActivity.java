@@ -122,7 +122,6 @@ public class TextTranslationActivity extends AppCompatActivity {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 sourceLangCode = fromLangs.get(position).code;
-                triggerTranslation();
             }
             @Override
             public void onNothingSelected(AdapterView<?> parent) {}
@@ -132,7 +131,6 @@ public class TextTranslationActivity extends AppCompatActivity {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 targetLangCode = toLangs.get(position).code;
-                triggerTranslation();
             }
             @Override
             public void onNothingSelected(AdapterView<?> parent) {}
@@ -156,7 +154,7 @@ public class TextTranslationActivity extends AppCompatActivity {
 
         findViewById(R.id.btnSpeak).setOnClickListener(v -> {
             String text = txtResult.getText().toString();
-            if (!text.isEmpty() && !text.equals("Translating...") && !text.equals("Identifying language...")) {
+            if (!text.isEmpty() && !text.equals("Translating...") && !text.contains("failed")) {
                 tts.setLanguage(new Locale(targetLangCode));
                 tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, null);
             }
@@ -164,7 +162,7 @@ public class TextTranslationActivity extends AppCompatActivity {
     }
 
     private void triggerTranslation() {
-        String input = editSource.getText().toString().trim();
+        String input = LanguageUtils.cleanTextForTranslation(editSource.getText().toString());
         if (input.isEmpty()) return;
 
         cardResult.setVisibility(View.VISIBLE);
@@ -201,51 +199,25 @@ public class TextTranslationActivity extends AppCompatActivity {
                 .build();
         
         Translator t = Translation.getClient(options);
-        com.google.mlkit.common.model.DownloadConditions conditions = new com.google.mlkit.common.model.DownloadConditions.Builder().build();
         
-        t.downloadModelIfNeeded(conditions).addOnSuccessListener(unused -> {
-            String[] lines = text.split("\n");
-            final String[] translatedLines = new String[lines.length];
-            final java.util.concurrent.atomic.AtomicInteger count = new java.util.concurrent.atomic.AtomicInteger(0);
-
-            for (int i = 0; i < lines.length; i++) {
-                final int index = i;
-                String line = lines[i];
-                if (line.trim().isEmpty()) {
-                    translatedLines[index] = line;
-                    if (count.incrementAndGet() == lines.length) {
-                        finishActivityTranslation(translatedLines, t);
-                    }
-                } else {
-                    t.translate(line).addOnSuccessListener(result -> {
-                        translatedLines[index] = result;
-                        if (count.incrementAndGet() == lines.length) {
-                            finishActivityTranslation(translatedLines, t);
-                        }
-                    }).addOnFailureListener(e -> {
-                        translatedLines[index] = line;
-                        if (count.incrementAndGet() == lines.length) {
-                            finishActivityTranslation(translatedLines, t);
-                        }
+        t.downloadModelIfNeeded().addOnSuccessListener(unused -> {
+            t.translate(text)
+                    .addOnSuccessListener(result -> {
+                        runOnUiThread(() -> {
+                            String finalResult = result.trim();
+                            txtResult.setText(finalResult);
+                            HistoryManager.saveTranslation(this, finalResult);
+                            t.close();
+                        });
+                    })
+                    .addOnFailureListener(e -> {
+                        runOnUiThread(() -> {
+                            txtResult.setText("Translation failed: " + e.getLocalizedMessage());
+                            t.close();
+                        });
                     });
-                }
-            }
         }).addOnFailureListener(e -> {
-            txtResult.setText("Error: " + e.getMessage());
-            t.close();
-        });
-    }
-
-    private void finishActivityTranslation(String[] lines, Translator t) {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < lines.length; i++) {
-            sb.append(lines[i]);
-            if (i < lines.length - 1) sb.append("\n");
-        }
-        String finalResult = sb.toString();
-        runOnUiThread(() -> {
-            txtResult.setText(finalResult);
-            HistoryManager.saveTranslation(this, finalResult);
+            txtResult.setText("Model missing. Ensure Wifi is on.");
             t.close();
         });
     }

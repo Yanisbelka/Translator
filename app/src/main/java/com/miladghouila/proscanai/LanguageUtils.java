@@ -59,6 +59,30 @@ public class LanguageUtils {
         return languages;
     }
 
+    public static String cleanTextForTranslation(String text) {
+        if (text == null) return "";
+        
+        // 1. Remove obvious OCR noise (isolated symbols like |, *, _, ~, etc.)
+        // This regex removes symbols that are not punctuation or math symbols
+        // and are often artifacts of poor lighting/background
+        String cleaned = text.replaceAll("[|*_~«»]", "");
+        
+        // 2. Normalize whitespace (remove multiple spaces/tabs)
+        cleaned = cleaned.replaceAll("[\\t ]+", " ");
+        
+        // 3. Trim every line and remove empty lines
+        String[] lines = cleaned.split("\\n");
+        StringBuilder sb = new StringBuilder();
+        for (String line : lines) {
+            String trimmed = line.trim();
+            if (trimmed.length() > 1 || (trimmed.length() == 1 && Character.isLetterOrDigit(trimmed.charAt(0)))) {
+                sb.append(trimmed).append("\n");
+            }
+        }
+        
+        return sb.toString().trim();
+    }
+
     public static void downloadAllLanguages() {
         RemoteModelManager modelManager = RemoteModelManager.getInstance();
         DownloadConditions conditions = new DownloadConditions.Builder()

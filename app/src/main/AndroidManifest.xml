@@ -18,20 +18,15 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.ProScanAI">
 
-        <!-- AUTHENTICATION -->
+        <!-- START SCREEN -->
         <activity
-            android:name=".LoginActivity"
+            android:name=".StartActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <!-- START SCREEN -->
-        <activity
-            android:name=".StartActivity"
-            android:exported="false" />
 
         <!-- CAMERA SCREEN -->
         <activity

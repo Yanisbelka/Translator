@@ -43,7 +43,7 @@
                     android:gravity="start|top"
                     android:lineSpacingExtra="4dp"
                     android:text="Translation will appear here..."
-                    android:textColor="@color/black"
+                    android:textColor="?android:attr/textColorPrimary"
                     android:textSize="17sp"
                     android:textDirection="firstStrong"
                     android:textAlignment="viewStart" />
@@ -59,18 +59,29 @@
                     style="@style/Widget.Material3.Button.TonalButton"
                     android:layout_width="0dp"
                     android:layout_height="56dp"
-                    android:layout_marginEnd="6dp"
+                    android:layout_marginEnd="4dp"
                     android:layout_weight="1"
                     android:text="Copy"
                     app:cornerRadius="12dp"
                     app:icon="@android:drawable/ic_menu_edit" />
 
                 <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnFavorite"
+                    style="@style/Widget.Material3.Button.TonalButton"
+                    android:layout_width="0dp"
+                    android:layout_height="56dp"
+                    android:layout_marginHorizontal="4dp"
+                    android:layout_weight="1"
+                    android:text="Save"
+                    app:cornerRadius="12dp"
+                    app:icon="@android:drawable/btn_star_big_off" />
+
+                <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnHide"
                     style="@style/Widget.Material3.Button"
                     android:layout_width="0dp"
                     android:layout_height="56dp"
-                    android:layout_marginStart="6dp"
+                    android:layout_marginStart="4dp"
                     android:layout_weight="1"
                     android:text="Close"
                     app:cornerRadius="12dp" />

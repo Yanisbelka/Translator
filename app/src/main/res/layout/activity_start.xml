@@ -39,17 +39,6 @@
         app:layout_constraintTop_toBottomOf="@id/title" />
 
     <ImageButton
-        android:id="@+id/btnLogout"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:layout_margin="16dp"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:src="@android:drawable/ic_lock_power_off"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:tint="@color/white" />
-
-    <ImageButton
         android:id="@+id/btnThemeToggle"
         android:layout_width="48dp"
         android:layout_height="48dp"
@@ -58,18 +47,6 @@
         android:src="@drawable/ic_moon"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent"
-        app:tint="@color/white" />
-
-    <ImageButton
-        android:id="@+id/btnOpenHistory"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:layout_marginEnd="8dp"
-        android:background="?attr/selectableItemBackgroundBorderless"
-        android:src="@android:drawable/ic_menu_recent_history"
-        app:layout_constraintBottom_toBottomOf="@id/btnThemeToggle"
-        app:layout_constraintEnd_toStartOf="@id/btnThemeToggle"
-        app:layout_constraintTop_toTopOf="@id/btnThemeToggle"
         app:tint="@color/white" />
 
     <com.google.android.material.card.MaterialCardView
@@ -113,7 +90,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="📸 Camera Scan"
-                    android:textColor="@color/black"
+                    android:textColor="?android:attr/textColorPrimary"
                     android:textSize="20sp"
                     android:textStyle="bold" />
 
@@ -121,7 +98,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Point and translate instantly"
-                    android:textColor="#757575"
+                    android:textColor="?android:attr/textColorSecondary"
                     android:textSize="14sp" />
             </LinearLayout>
         </LinearLayout>
@@ -132,7 +109,7 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginStart="24dp"
-        android:layout_marginTop="20dp"
+        android:layout_marginTop="16dp"
         android:layout_marginEnd="24dp"
         app:cardCornerRadius="24dp"
         app:cardElevation="6dp"
@@ -168,7 +145,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="✨ Screen Magic"
-                    android:textColor="@color/black"
+                    android:textColor="?android:attr/textColorPrimary"
                     android:textSize="20sp"
                     android:textStyle="bold" />
 
@@ -176,7 +153,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Translate any app on screen"
-                    android:textColor="#757575"
+                    android:textColor="?android:attr/textColorSecondary"
                     android:textSize="14sp" />
             </LinearLayout>
         </LinearLayout>
@@ -187,7 +164,7 @@
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginStart="24dp"
-        android:layout_marginTop="20dp"
+        android:layout_marginTop="16dp"
         android:layout_marginEnd="24dp"
         app:cardCornerRadius="24dp"
         app:cardElevation="4dp"
@@ -223,7 +200,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="✍️ Text Lab"
-                    android:textColor="@color/black"
+                    android:textColor="?android:attr/textColorPrimary"
                     android:textSize="20sp"
                     android:textStyle="bold" />
 
@@ -231,7 +208,62 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="Manual translation workspace"
-                    android:textColor="#757575"
+                    android:textColor="?android:attr/textColorSecondary"
+                    android:textSize="14sp" />
+            </LinearLayout>
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/cardArchive"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="24dp"
+        android:layout_marginTop="16dp"
+        android:layout_marginEnd="24dp"
+        app:cardCornerRadius="24dp"
+        app:cardElevation="4dp"
+        app:strokeWidth="0dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/cardText">
+
+        <LinearLayout
+            android:id="@+id/archiveButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="?attr/selectableItemBackground"
+            android:clickable="true"
+            android:focusable="true"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:padding="24dp">
+
+            <ImageView
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:src="@android:drawable/ic_menu_recent_history"
+                app:tint="@color/primary" />
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="20dp"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="📚 My Archive"
+                    android:textColor="?android:attr/textColorPrimary"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="History, notes and favorites"
+                    android:textColor="?android:attr/textColorSecondary"
                     android:textSize="14sp" />
             </LinearLayout>
         </LinearLayout>
@@ -241,7 +273,7 @@
         android:id="@+id/btnContact"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="32dp"
+        android:layout_marginTop="24dp"
         android:text="Need help? Contact support"
         android:textColor="@color/primary"
         android:textSize="14sp"
@@ -250,14 +282,14 @@
         android:background="?attr/selectableItemBackground"
         android:clickable="true"
         android:focusable="true"
-        app:layout_constraintTop_toBottomOf="@id/cardText"
+        app:layout_constraintTop_toBottomOf="@id/cardArchive"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent" />
 
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginBottom="32dp"
+        android:layout_marginBottom="24dp"
         android:text="Powered by LinguScan Engine"
         android:textColor="#BDBDBD"
         android:textSize="11sp"

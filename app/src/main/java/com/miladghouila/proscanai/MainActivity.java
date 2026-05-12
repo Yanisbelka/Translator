@@ -56,13 +56,21 @@ public class MainActivity extends AppCompatActivity {
     private PreviewView previewView;
     private TextView textResult, txtCurrentLang;
     private Spinner languageSpinner;
-    private View btnTranslate, btnLanguage, btnHistory, cardResult, btnOcrScript;
-    private ImageButton btnBack;
+    private View btnTranslate, btnLanguage, btnHistory, cardResult, btnOcrScript, btnGallery, scanLine;
+    private ImageButton btnBack, btnFlashlight;
 
     private String targetLanguage = TranslateLanguage.FRENCH;
     private int currentOcrMode = 0; // 0: Latin, 1: Chinese, 2: Japanese, 3: Korean, 4: Devanagari
     private TextRecognizer recognizer;
     private LanguageIdentifier languageIdentifier;
+    private androidx.camera.core.Camera camera;
+    private boolean isFlashlightOn = false;
+    private final androidx.activity.result.ActivityResultLauncher<String> galleryLauncher = 
+        registerForActivityResult(new androidx.activity.result.contract.ActivityResultContracts.GetContent(), uri -> {
+            if (uri != null) {
+                processGalleryImage(uri);
+            }
+        });
 
     // Flag to trigger processing on button click
     private final AtomicBoolean shouldTranslate = new AtomicBoolean(false);
@@ -91,8 +99,25 @@ public class MainActivity extends AppCompatActivity {
         btnHistory = findViewById(R.id.btnHistory);
         btnBack = findViewById(R.id.btnBack);
         btnOcrScript = findViewById(R.id.btnOcrScript);
+        btnFlashlight = findViewById(R.id.btnFlashlight);
+        btnGallery = findViewById(R.id.btnGallery);
+        scanLine = findViewById(R.id.scanLine);
 
         btnBack.setOnClickListener(v -> finish());
+
+        btnFlashlight.setOnClickListener(v -> {
+            if (camera != null && camera.getCameraInfo().hasFlashUnit()) {
+                isFlashlightOn = !isFlashlightOn;
+                camera.getCameraControl().enableTorch(isFlashlightOn);
+                btnFlashlight.setImageResource(isFlashlightOn ? 
+                    android.R.drawable.btn_star_big_on : 
+                    android.R.drawable.btn_star_big_off);
+            } else {
+                Toast.makeText(this, "Flashlight not available", Toast.LENGTH_SHORT).show();
+            }
+        });
+
+        btnGallery.setOnClickListener(v -> galleryLauncher.launch("image/*"));
 
         btnOcrScript.setOnClickListener(v -> {
             currentOcrMode = (currentOcrMode + 1) % 5;
@@ -187,6 +212,7 @@ public class MainActivity extends AppCompatActivity {
         btnTranslate.setOnClickListener(v -> {
             textResult.setText("Processing...");
             shouldTranslate.set(true);
+            startScanAnimation();
         });
 
         // Camera permission
@@ -215,61 +241,33 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void setupResizableCard() {
-        cardResult.setOnTouchListener(new View.OnTouchListener() {
-            private float initialTouchX, initialTouchY;
-            private int initialWidth, initialHeight;
-            private boolean isResizing = false;
-            private static final int TOUCH_THRESHOLD = 60; // Near edges
+        View handle = findViewById(R.id.resizeHandle);
+        handle.setOnTouchListener(new View.OnTouchListener() {
+            private int initialHeight;
+            private float initialTouchY;
 
             @Override
             public boolean onTouch(View v, MotionEvent event) {
-                // Get screen dimensions
-                android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
-                int screenWidth = dm.widthPixels;
-                int screenHeight = dm.heightPixels;
-                int horizontalPadding = (int)(24 * dm.density); // Sum of horizontal margins/padding
-
                 switch (event.getAction()) {
                     case MotionEvent.ACTION_DOWN:
-                        float x = event.getX();
-                        float y = event.getY();
-                        int w = v.getWidth();
-                        int h = v.getHeight();
-
-                        if (x > w - TOUCH_THRESHOLD || x < TOUCH_THRESHOLD || y < TOUCH_THRESHOLD) {
-                            isResizing = true;
-                            initialTouchX = event.getRawX();
-                            initialTouchY = event.getRawY();
-                            initialWidth = w;
-                            initialHeight = h;
-                            return true;
-                        }
-                        break;
+                        initialHeight = cardResult.getHeight();
+                        initialTouchY = event.getRawY();
+                        return true;
 
                     case MotionEvent.ACTION_MOVE:
-                        if (isResizing) {
-                            float deltaX = event.getRawX() - initialTouchX;
-                            float deltaY = initialTouchY - event.getRawY();
-
-                            ViewGroup.LayoutParams params = v.getLayoutParams();
-
-                            // Horizontal Resize: Restrict width to screen width minus margins
-                            int newWidth = Math.max(300, initialWidth + (int)(Math.abs(deltaX) * 2));
-                            params.width = Math.min(newWidth, screenWidth - horizontalPadding);
-
-                            // Vertical Resize: Restrict height to half screen height (or reasonable limit)
-                            int newHeight = Math.max(200, initialHeight + (int)deltaY);
-                            params.height = Math.min(newHeight, screenHeight / 2);
-
-                            v.setLayoutParams(params);
-                            return true;
+                        float deltaY = initialTouchY - event.getRawY();
+                        int newHeight = (int) (initialHeight + deltaY);
+                        
+                        // Limits: 150dp to 60% of screen height
+                        int minHeight = (int)(150 * getResources().getDisplayMetrics().density);
+                        int maxHeight = (int)(getResources().getDisplayMetrics().heightPixels * 0.6f);
+                        
+                        if (newHeight >= minHeight && newHeight <= maxHeight) {
+                            ViewGroup.LayoutParams params = cardResult.getLayoutParams();
+                            params.height = newHeight;
+                            cardResult.setLayoutParams(params);
                         }
-                        break;
-
-                    case MotionEvent.ACTION_UP:
-                        isResizing = false;
-                        if (v.performClick()) return true;
-                        break;
+                        return true;
                 }
                 return false;
             }
@@ -299,7 +297,7 @@ public class MainActivity extends AppCompatActivity {
                 CameraSelector cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA;
 
                 cameraProvider.unbindAll();
-                cameraProvider.bindToLifecycle(this,
+                camera = cameraProvider.bindToLifecycle(this,
                         cameraSelector,
                         preview,
                         imageAnalysis);
@@ -308,6 +306,16 @@ public class MainActivity extends AppCompatActivity {
                 e.printStackTrace();
             }
         }, ContextCompat.getMainExecutor(this));
+    }
+
+    private void startScanAnimation() {
+        scanLine.setVisibility(View.VISIBLE);
+        scanLine.setTranslationY(0);
+        scanLine.animate()
+                .translationY(previewView.getHeight())
+                .setDuration(1500)
+                .withEndAction(() -> scanLine.setVisibility(View.GONE))
+                .start();
     }
 
     private void processImage(ImageProxy imageProxy) {
@@ -320,13 +328,11 @@ public class MainActivity extends AppCompatActivity {
 
             recognizer.process(image)
                     .addOnSuccessListener(text -> {
-                        String fullText = text.getText();
-                        if (fullText != null && !fullText.trim().isEmpty()) {
-                            // Professional cleaning: Keep only letters, numbers, spaces, and basic punctuation
-                            fullText = fullText.replaceAll("[^\\p{L}\\p{N}\\s.,!?;:'\"\\-()\\n]", "");
-                            translateText(fullText.trim());
+                        String fullText = LanguageUtils.cleanTextForTranslation(text.getText());
+                        if (!fullText.isEmpty()) {
+                            translateText(fullText);
                         } else {
-                            textResult.setText("No text detected in view");
+                            textResult.setText("No clear text detected");
                         }
                     })
                     .addOnFailureListener(e -> {
@@ -337,6 +343,30 @@ public class MainActivity extends AppCompatActivity {
 
         } else {
             imageProxy.close();
+        }
+    }
+
+    private void processGalleryImage(android.net.Uri uri) {
+        try {
+            InputImage image = InputImage.fromFilePath(this, uri);
+            textResult.setText("Extracting text from image...");
+            cardResult.setVisibility(View.VISIBLE);
+            
+            recognizer.process(image)
+                    .addOnSuccessListener(text -> {
+                        String fullText = LanguageUtils.cleanTextForTranslation(text.getText());
+                        if (!fullText.isEmpty()) {
+                            translateText(fullText);
+                        } else {
+                            textResult.setText("No readable text found in image");
+                        }
+                    })
+                    .addOnFailureListener(e -> {
+                        textResult.setText("Failed to process image");
+                        Toast.makeText(this, "Error: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                    });
+        } catch (java.io.IOException e) {
+            e.printStackTrace();
         }
     }
 
@@ -356,57 +386,36 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void performTranslation(String input, String sourceCode) {
+        if (sourceCode.equals(targetLanguage)) {
+            textResult.setText(input);
+            HistoryManager.saveTranslation(this, input);
+            return;
+        }
+
+        // Use high-quality block translation with aggressive model checking
         TranslatorOptions options = new TranslatorOptions.Builder()
                 .setSourceLanguage(sourceCode)
                 .setTargetLanguage(targetLanguage)
                 .build();
 
         Translator t = Translation.getClient(options);
+        
         t.downloadModelIfNeeded().addOnSuccessListener(unused -> {
-            String[] lines = input.split("\n");
-            final String[] translatedLines = new String[lines.length];
-            final java.util.concurrent.atomic.AtomicInteger count = new java.util.concurrent.atomic.AtomicInteger(0);
-
-            for (int i = 0; i < lines.length; i++) {
-                final int index = i;
-                String line = lines[i];
-                if (line.trim().isEmpty()) {
-                    translatedLines[index] = line;
-                    if (count.incrementAndGet() == lines.length) {
-                        finishTranslation(translatedLines, t);
-                    }
-                } else {
-                    t.translate(line)
-                            .addOnSuccessListener(result -> {
-                                translatedLines[index] = result;
-                                if (count.incrementAndGet() == lines.length) {
-                                    finishTranslation(translatedLines, t);
-                                }
-                            })
-                            .addOnFailureListener(e -> {
-                                translatedLines[index] = line; // fallback to original
-                                if (count.incrementAndGet() == lines.length) {
-                                    finishTranslation(translatedLines, t);
-                                }
-                            });
-                }
-            }
+            t.translate(input)
+                    .addOnSuccessListener(result -> {
+                        String finalResult = result.trim();
+                        textResult.setText(finalResult);
+                        HistoryManager.saveTranslation(this, finalResult);
+                        t.close();
+                    })
+                    .addOnFailureListener(e -> {
+                        textResult.setText("Translation failed: " + e.getLocalizedMessage());
+                        t.close();
+                    });
         }).addOnFailureListener(e -> {
-            textResult.setText("Model download failed");
+            textResult.setText("Model missing. Ensure Wifi is on for background download.");
             t.close();
         });
-    }
-
-    private void finishTranslation(String[] lines, Translator t) {
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < lines.length; i++) {
-            sb.append(lines[i]);
-            if (i < lines.length - 1) sb.append("\n");
-        }
-        String finalResult = sb.toString();
-        textResult.setText(finalResult);
-        HistoryManager.saveTranslation(this, finalResult);
-        t.close();
     }
 
     @Override

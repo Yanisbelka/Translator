@@ -25,10 +25,22 @@
         app:layout_constraintTop_toTopOf="@id/top_bar"
         app:tint="@color/white" />
 
+    <ImageButton
+        android:id="@+id/btnExport"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_marginStart="8dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:src="@android:drawable/ic_menu_save"
+        app:layout_constraintBottom_toBottomOf="@id/top_bar"
+        app:layout_constraintStart_toEndOf="@id/btnBack"
+        app:layout_constraintTop_toTopOf="@id/top_bar"
+        app:tint="@color/white" />
+
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="History"
+        android:text="My Archive"
         android:textColor="@color/white"
         android:textSize="22sp"
         android:fontFamily="sans-serif-medium"
@@ -49,6 +61,26 @@
         app:layout_constraintTop_toTopOf="@id/top_bar"
         app:tint="@color/white" />
 
+    <com.google.android.material.tabs.TabLayout
+        android:id="@+id/tabLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="?attr/colorSurface"
+        app:layout_constraintTop_toBottomOf="@id/top_bar"
+        app:tabIndicatorColor="@color/primary"
+        app:tabSelectedTextColor="@color/primary">
+
+        <com.google.android.material.tabs.TabItem
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Recent" />
+
+        <com.google.android.material.tabs.TabItem
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Favorites" />
+    </com.google.android.material.tabs.TabLayout>
+
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recyclerHistory"
         android:layout_width="match_parent"
@@ -56,7 +88,7 @@
         android:padding="12dp"
         android:clipToPadding="false"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/top_bar" />
+        app:layout_constraintTop_toBottomOf="@id/tabLayout" />
 
     <LinearLayout
         android:id="@+id/layoutEmpty"
@@ -78,6 +110,7 @@
             android:layout_marginBottom="16dp"/>
 
         <TextView
+            android:id="@+id/txtEmpty"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:text="No history yet"

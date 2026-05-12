@@ -4,20 +4,26 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.Service;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ServiceInfo;
 import android.graphics.Bitmap;
 import android.graphics.Rect;
+import android.media.projection.MediaProjection;
+import android.media.projection.MediaProjectionManager;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
+import android.speech.tts.TextToSpeech;
 import android.widget.Toast;
 
 import androidx.core.app.NotificationCompat;
 
 import com.google.mlkit.nl.translate.TranslateLanguage;
 import com.google.mlkit.vision.text.Text;
+
+import java.util.Locale;
 
 public class FloatingControlService extends Service implements FloatingUIManager.UIActionListener {
 
@@ -26,50 +32,75 @@ public class FloatingControlService extends Service implements FloatingUIManager
     private TranslationManager translationManager;
     private ScreenCaptureManager screenCaptureManager;
 
+    private MediaProjectionManager projectionManager;
+    private MediaProjection mediaProjection;
+    private TextToSpeech tts;
+
     private String targetLanguage = TranslateLanguage.FRENCH;
     private int currentOcrMode = 0;
     private boolean isFullScreenMode = true;
 
-    private int resultCode;
-    private Intent resultData;
-
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
-
-    private static boolean isRunning = false;
     private boolean isBusy = false;
 
     @Override
     public void onCreate() {
         super.onCreate();
-
         uiManager = new FloatingUIManager(this, this);
         ocrManager = new OcrManager();
         translationManager = new TranslationManager();
         screenCaptureManager = new ScreenCaptureManager(this);
+        projectionManager = (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
 
         translationManager.downloadCommonModels();
+
+        tts = new TextToSpeech(this, status -> {
+            if (status != TextToSpeech.ERROR) {
+                tts.setLanguage(new Locale(targetLanguage));
+            }
+        });
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-
         if (intent != null && intent.hasExtra("CODE")) {
-            resultCode = intent.getIntExtra("CODE", -1);
-            resultData = intent.getParcelableExtra("DATA");
+            int resultCode = intent.getIntExtra("CODE", -1);
+            Intent resultData = intent.getParcelableExtra("DATA");
 
-            if (!isRunning) {
-                setupNotification();
-                isRunning = true;
+            // 1. Setup notification first (requirement for foreground)
+            setupNotification();
+
+            // 2. Obtain MediaProjection immediately
+            if (resultData != null) {
+                try {
+                    if (mediaProjection != null) {
+                        mediaProjection.stop();
+                    }
+                    mediaProjection = projectionManager.getMediaProjection(resultCode, resultData);
+                    
+                    if (mediaProjection != null) {
+                        mediaProjection.registerCallback(new MediaProjection.Callback() {
+                            @Override
+                            public void onStop() {
+                                super.onStop();
+                                mediaProjection = null;
+                                screenCaptureManager.stop();
+                            }
+                        }, mainHandler);
+
+                        // 3. START CAPTURE IMMEDIATELY to avoid Android 14 timeout
+                        screenCaptureManager.initPersistentCapture(mediaProjection, mainHandler);
+                    }
+                } catch (Exception e) {
+                    Toast.makeText(this, "System blocked screen access. Please restart Screen Magic.", Toast.LENGTH_LONG).show();
+                }
             }
         }
-
         return START_STICKY;
     }
 
     private void setupNotification() {
-
         String channelId = "proscan_screen_v1";
-
         if (Build.VERSION.SDK_INT >= 26) {
             NotificationChannel channel = new NotificationChannel(
                     channelId,
@@ -80,14 +111,15 @@ public class FloatingControlService extends Service implements FloatingUIManager
         }
 
         Notification notification = new NotificationCompat.Builder(this, channelId)
-                .setContentTitle("Screen Translator Active")
-                .setContentText("Tap bubble to translate screen")
+                .setContentTitle("LinguScan: Screen Magic Active")
+                .setContentText("Tap the floating icon to translate")
                 .setSmallIcon(R.mipmap.ic_launcher)
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .setOngoing(true)
                 .build();
 
         if (Build.VERSION.SDK_INT >= 29) {
-            startForeground(1, notification,
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION);
+            startForeground(1, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION);
         } else {
             startForeground(1, notification);
         }
@@ -95,49 +127,38 @@ public class FloatingControlService extends Service implements FloatingUIManager
 
     @Override
     public void onTranslateClicked() {
-
         if (isBusy) return;
 
-        if (resultData == null) {
-            Toast.makeText(this, "Permission not granted", Toast.LENGTH_SHORT).show();
+        if (mediaProjection == null) {
+            Toast.makeText(this, "Capture session expired. Please re-enable Screen Magic in the app.", Toast.LENGTH_LONG).show();
             return;
         }
 
         isBusy = true;
-
-        uiManager.setStatusText("Capturing screen...");
+        uiManager.setStatusText("Reading screen...");
         uiManager.hideUIForCapture();
 
-        screenCaptureManager.takeScreenshot(
-                resultCode,
-                resultData,
-                mainHandler,
-                new ScreenCaptureManager.CaptureCallback() {
+        // Use the persistent frame grabber
+        screenCaptureManager.captureCurrentFrame(new ScreenCaptureManager.CaptureCallback() {
+            @Override
+            public void onBitmapCaptured(Bitmap bitmap) {
+                processScreenshot(bitmap);
+            }
 
-                    @Override
-                    public void onBitmapCaptured(Bitmap bitmap) {
-                        processScreenshot(bitmap);
-                    }
-
-                    @Override
-                    public void onError(String message) {
-                        forceReset(message);
-                    }
-                }
-        );
+            @Override
+            public void onError(String message) {
+                forceReset(message);
+            }
+        });
     }
 
     private void processScreenshot(Bitmap fullBitmap) {
-
-        Bitmap inputBitmap;
-
         try {
+            Bitmap inputBitmap;
             if (isFullScreenMode) {
                 inputBitmap = fullBitmap;
             } else {
-
                 Rect rect = uiManager.getSelectionRect();
-
                 int x = Math.max(0, rect.left);
                 int y = Math.max(0, rect.top);
                 int w = Math.min(rect.width(), fullBitmap.getWidth() - x);
@@ -145,96 +166,57 @@ public class FloatingControlService extends Service implements FloatingUIManager
 
                 if (w <= 0 || h <= 0) {
                     fullBitmap.recycle();
-                    forceReset("Invalid scan area");
+                    forceReset("Selection area is invalid");
                     return;
                 }
-
                 inputBitmap = Bitmap.createBitmap(fullBitmap, x, y, w, h);
-                fullBitmap.recycle();
+                if (inputBitmap != fullBitmap) fullBitmap.recycle();
             }
 
-            uiManager.setStatusText("Reading text...");
-
-            ocrManager.processImage(
-                    inputBitmap,
-                    this::handleOcrSuccess,
-                    this::handleOcrFailure
-            );
-
+            ocrManager.processImage(inputBitmap, this::handleOcrSuccess, this::handleOcrFailure);
         } catch (Exception e) {
-            forceReset("Processing error: " + e.getMessage());
+            forceReset("Error: " + e.getMessage());
         }
     }
 
     private void handleOcrSuccess(Text text) {
-
-        String content = text.getText();
-
-        if (content == null || content.trim().isEmpty()) {
-            forceReset("No text found");
+        String content = LanguageUtils.cleanTextForTranslation(text.getText());
+        if (content.isEmpty()) {
+            forceReset("No text found on screen");
             return;
         }
-
-        content = content.replaceAll("[^\\p{L}\\p{N}\\s.,!?;:'\"\\-()\\n]", "");
-
-        translateText(content.trim());
+        translateText(content);
     }
 
     private void handleOcrFailure(Exception e) {
-        forceReset("OCR Error: " + e.getMessage());
+        forceReset("Recognition failed");
     }
 
     private void translateText(String input) {
-
         uiManager.setStatusText("Translating...");
-
         translationManager.identifyLanguage(input, code -> {
-
             String source = code.equals("und") ? "en" : code;
-
-            translationManager.translate(
-                    input,
-                    source,
-                    targetLanguage,
-                    this::handleTranslationSuccess,
-                    this::handleTranslationFailure
-            );
-
+            translationManager.translate(input, source, targetLanguage,
+                    this::handleTranslationSuccess, this::handleTranslationFailure);
         }, e -> {
-            translationManager.translate(
-                    input,
-                    "en",
-                    targetLanguage,
-                    this::handleTranslationSuccess,
-                    this::handleTranslationFailure
-            );
+            translationManager.translate(input, "en", targetLanguage,
+                    this::handleTranslationSuccess, this::handleTranslationFailure);
         });
     }
 
     private void handleTranslationSuccess(String result) {
-
         uiManager.setStatusText(result);
         HistoryManager.saveTranslation(this, result);
-
         forceReset(null);
     }
 
     private void handleTranslationFailure(Exception e) {
-        forceReset("Translation failed: " + e.getMessage());
+        forceReset("Translation error");
     }
 
-    /**
-     * 🔥 THIS FIXES YOUR ISSUE COMPLETELY
-     * UI ALWAYS COMES BACK
-     */
     private void forceReset(String message) {
-
         mainHandler.post(() -> {
-
-            if (message != null) {
-                uiManager.setStatusText(message);
-            }
-
+            if (message != null) uiManager.setStatusText(message);
             uiManager.restoreUI();
             isBusy = false;
         });
@@ -247,12 +229,9 @@ public class FloatingControlService extends Service implements FloatingUIManager
 
     @Override
     public void onOcrModeChanged() {
-
         currentOcrMode = (currentOcrMode + 1) % 5;
-
-
+        ocrManager.setMode(currentOcrMode);
         String mode;
-
         switch (currentOcrMode) {
             case 1: mode = "Chinese"; break;
             case 2: mode = "Japanese"; break;
@@ -260,8 +239,7 @@ public class FloatingControlService extends Service implements FloatingUIManager
             case 4: mode = "Devanagari"; break;
             default: mode = "Latin"; break;
         }
-
-        Toast.makeText(this, "OCR Mode: " + mode, Toast.LENGTH_SHORT).show();
+        Toast.makeText(this, "Mode: " + mode, Toast.LENGTH_SHORT).show();
     }
 
     @Override
@@ -282,16 +260,36 @@ public class FloatingControlService extends Service implements FloatingUIManager
     }
 
     @Override
+    public void onCopyClicked(String text) {
+        android.content.ClipboardManager cb = (android.content.ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        cb.setPrimaryClip(android.content.ClipData.newPlainText("LinguScan", text));
+        Toast.makeText(this, "Copied to clipboard", Toast.LENGTH_SHORT).show();
+    }
+
+    @Override
+    public void onSpeakClicked(String text) {
+        if (tts != null) {
+            tts.setLanguage(new Locale(targetLanguage));
+            tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, null);
+        }
+    }
+
+    @Override
     public void onDestroy() {
         super.onDestroy();
-
-        isRunning = false;
         isBusy = false;
-
+        if (tts != null) {
+            tts.stop();
+            tts.shutdown();
+        }
         if (uiManager != null) uiManager.onDestroy();
         if (ocrManager != null) ocrManager.close();
         if (translationManager != null) translationManager.close();
         if (screenCaptureManager != null) screenCaptureManager.stop();
+        if (mediaProjection != null) {
+            mediaProjection.stop();
+            mediaProjection = null;
+        }
     }
 
     @Override

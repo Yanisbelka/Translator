@@ -1,13 +1,13 @@
 package com.miladghouila.proscanai;
 
-import android.content.ClipData;
-import android.content.ClipboardManager;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageButton;
 import android.widget.TextView;
 import android.widget.Toast;
+import com.google.android.material.tabs.TabLayout;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.LinearLayoutManager;
@@ -19,6 +19,7 @@ public class HistoryActivity extends AppCompatActivity {
     private RecyclerView recyclerView;
     private View emptyView;
     private HistoryAdapter adapter;
+    private boolean showingFavorites = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -27,7 +28,41 @@ public class HistoryActivity extends AppCompatActivity {
 
         recyclerView = findViewById(R.id.recyclerHistory);
         emptyView = findViewById(R.id.layoutEmpty);
+        TabLayout tabLayout = findViewById(R.id.tabLayout);
+        
+        tabLayout.addOnTabSelectedListener(new TabLayout.OnTabSelectedListener() {
+            @Override
+            public void onTabSelected(TabLayout.Tab tab) {
+                showingFavorites = tab.getPosition() == 1;
+                loadHistory();
+            }
+            @Override
+            public void onTabUnselected(TabLayout.Tab tab) {}
+            @Override
+            public void onTabReselected(TabLayout.Tab tab) {}
+        });
+
         findViewById(R.id.btnBack).setOnClickListener(v -> finish());
+        
+        findViewById(R.id.btnExport).setOnClickListener(v -> {
+            List<String> items = showingFavorites ? 
+                HistoryManager.getFavorites(this) : 
+                HistoryManager.getHistory(this);
+                
+            if (items.isEmpty()) {
+                Toast.makeText(this, "Nothing to export", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            
+            StringBuilder sb = new StringBuilder("LinguScan Archive Export\n\n");
+            for (String s : items) sb.append("- ").append(s).append("\n\n");
+            
+            android.content.Intent intent = new android.content.Intent(android.content.Intent.ACTION_SEND);
+            intent.setType("text/plain");
+            intent.putExtra(android.content.Intent.EXTRA_TEXT, sb.toString());
+            startActivity(android.content.Intent.createChooser(intent, "Export Archive"));
+        });
+
         findViewById(R.id.btnClear).setOnClickListener(v -> {
             new androidx.appcompat.app.AlertDialog.Builder(this)
                 .setTitle("Clear History")
@@ -46,14 +81,21 @@ public class HistoryActivity extends AppCompatActivity {
     }
 
     private void loadHistory() {
-        List<String> history = HistoryManager.getHistory(this);
-        if (history.isEmpty()) {
+        List<String> items = showingFavorites ? 
+                HistoryManager.getFavorites(this) : 
+                HistoryManager.getHistory(this);
+                
+        if (items.isEmpty()) {
             emptyView.setVisibility(View.VISIBLE);
             recyclerView.setVisibility(View.GONE);
+            TextView txtEmpty = emptyView.findViewById(R.id.txtEmpty);
+            if (txtEmpty != null) {
+                txtEmpty.setText(showingFavorites ? "No favorites yet" : "No history yet");
+            }
         } else {
             emptyView.setVisibility(View.GONE);
             recyclerView.setVisibility(View.VISIBLE);
-            adapter = new HistoryAdapter(history);
+            adapter = new HistoryAdapter(items);
             recyclerView.setAdapter(adapter);
         }
     }
@@ -76,11 +118,20 @@ public class HistoryActivity extends AppCompatActivity {
         public void onBindViewHolder(@NonNull ViewHolder holder, int position) {
             String text = history.get(position);
             holder.txtText.setText(text);
+            
+            boolean isFav = HistoryManager.isFavorite(HistoryActivity.this, text);
+            holder.btnCopy.setImageResource(isFav ? 
+                android.R.drawable.btn_star_big_on : 
+                android.R.drawable.ic_menu_edit);
+
             holder.btnCopy.setOnClickListener(v -> {
-                ClipboardManager cb = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
-                cb.setPrimaryClip(ClipData.newPlainText("ProScan", text));
-                Toast.makeText(HistoryActivity.this, "Copied!", Toast.LENGTH_SHORT).show();
+                HistoryManager.toggleFavorite(HistoryActivity.this, text);
+                notifyItemChanged(position);
+                Toast.makeText(HistoryActivity.this, 
+                    HistoryManager.isFavorite(HistoryActivity.this, text) ? "Saved to Favorites" : "Removed from Favorites", 
+                    Toast.LENGTH_SHORT).show();
             });
+            
             holder.btnShare.setOnClickListener(v -> {
                 android.content.Intent sendIntent = new android.content.Intent();
                 sendIntent.setAction(android.content.Intent.ACTION_SEND);
@@ -98,13 +149,13 @@ public class HistoryActivity extends AppCompatActivity {
 
         class ViewHolder extends RecyclerView.ViewHolder {
             TextView txtText;
-            View btnCopy, btnShare;
+            ImageButton btnCopy, btnShare;
 
             ViewHolder(View itemView) {
                 super(itemView);
                 txtText = itemView.findViewById(R.id.txtHistoryText);
-                btnCopy = itemView.findViewById(R.id.btnCopy);
-                btnShare = itemView.findViewById(R.id.btnShare);
+                btnCopy = (ImageButton) itemView.findViewById(R.id.btnCopy);
+                btnShare = (ImageButton) itemView.findViewById(R.id.btnShare);
             }
         }
     }

@@ -19,8 +19,8 @@ import androidx.appcompat.app.AppCompatDelegate;
 
 public class StartActivity extends AppCompatActivity {
 
-    View cameraButton, screenButton, textButton;
-    ImageButton btnThemeToggle, btnOpenHistory, btnLogout;
+    View cameraButton, screenButton, textButton, archiveButton;
+    ImageButton btnThemeToggle;
     TextView btnContact;
     boolean isDarkMode;
 
@@ -33,14 +33,17 @@ public class StartActivity extends AppCompatActivity {
         applyTheme(isDarkMode);
 
         super.onCreate(savedInstanceState);
+
+        // Trigger background download of all translation models
+        LanguageUtils.downloadAllLanguages();
+
         setContentView(R.layout.activity_start);
 
         cameraButton = findViewById(R.id.cameraButton);
         screenButton = findViewById(R.id.screenButton);
         textButton = findViewById(R.id.textButton);
         btnThemeToggle = findViewById(R.id.btnThemeToggle);
-        btnOpenHistory = findViewById(R.id.btnOpenHistory);
-        btnLogout = findViewById(R.id.btnLogout);
+        archiveButton = findViewById(R.id.archiveButton);
         btnContact = findViewById(R.id.btnContact);
 
         updateThemeIcon();
@@ -66,15 +69,12 @@ public class StartActivity extends AppCompatActivity {
                 }
         );
 
-        btnLogout.setOnClickListener(v -> {
-            getSharedPreferences("auth", MODE_PRIVATE).edit().clear().apply();
-            startActivity(new Intent(this, LoginActivity.class));
-            finish();
-        });
-
-        btnOpenHistory.setOnClickListener(v -> {
-            Intent intent = new Intent(this, HistoryActivity.class);
-            startActivity(intent);
+        archiveButton.setOnClickListener(v -> {
+            v.animate().scaleX(0.95f).scaleY(0.95f).setDuration(100).withEndAction(() -> {
+                v.animate().scaleX(1f).scaleY(1f).setDuration(100).start();
+                Intent intent = new Intent(this, HistoryActivity.class);
+                startActivity(intent);
+            }).start();
         });
 
         btnThemeToggle.setOnClickListener(v -> {
@@ -130,14 +130,18 @@ public class StartActivity extends AppCompatActivity {
                 Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                         Uri.parse("package:" + getPackageName()));
                 startActivity(intent);
-                Toast.makeText(this, "Please enable Overlay Permission", Toast.LENGTH_LONG).show();
+                Toast.makeText(this, "Enable 'Display over other apps' to use Screen Magic", Toast.LENGTH_LONG).show();
                 return;
             }
         }
         
         MediaProjectionManager projectionManager = (MediaProjectionManager) 
                 getSystemService(MEDIA_PROJECTION_SERVICE);
-        projectionLauncher.launch(projectionManager.createScreenCaptureIntent());
+        if (projectionManager != null) {
+            projectionLauncher.launch(projectionManager.createScreenCaptureIntent());
+        } else {
+            Toast.makeText(this, "Screen capture not supported on this device", Toast.LENGTH_SHORT).show();
+        }
     }
 
     private void applyTheme(boolean dark) {
