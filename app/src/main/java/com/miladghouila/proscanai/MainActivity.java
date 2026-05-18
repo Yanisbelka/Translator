@@ -333,6 +333,7 @@ public class MainActivity extends AppCompatActivity {
                             translateText(fullText);
                         } else {
                             textResult.setText("No clear text detected");
+                            cardResult.setVisibility(View.VISIBLE);
                         }
                     })
                     .addOnFailureListener(e -> {
@@ -372,6 +373,9 @@ public class MainActivity extends AppCompatActivity {
 
     private void translateText(String input) {
         if (input == null || input.trim().isEmpty()) return;
+
+        // Show the result card immediately when text is found
+        cardResult.setVisibility(View.VISIBLE);
 
         // Step 1: Detect Language Automatically
         languageIdentifier.identifyLanguage(input)

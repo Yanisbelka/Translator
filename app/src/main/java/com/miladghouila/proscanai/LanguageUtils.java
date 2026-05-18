@@ -59,34 +59,51 @@ public class LanguageUtils {
         return languages;
     }
 
+    /**
+     * Advanced text purifier to ignore pictures/noise and focus on real text.
+     */
     public static String cleanTextForTranslation(String text) {
-        if (text == null) return "";
+        if (text == null || text.trim().isEmpty()) return "";
         
-        // 1. Remove obvious OCR noise (isolated symbols like |, *, _, ~, etc.)
-        // This regex removes symbols that are not punctuation or math symbols
-        // and are often artifacts of poor lighting/background
-        String cleaned = text.replaceAll("[|*_~«»]", "");
+        // 1. Remove obvious OCR hallucinations often found in pictures/backgrounds
+        String cleaned = text.replaceAll("[|*_~«»¤¦¬°^±]", "");
         
-        // 2. Normalize whitespace (remove multiple spaces/tabs)
+        // 2. Normalize whitespace
         cleaned = cleaned.replaceAll("[\\t ]+", " ");
         
-        // 3. Trim every line and remove empty lines
         String[] lines = cleaned.split("\\n");
         StringBuilder sb = new StringBuilder();
+        
         for (String line : lines) {
             String trimmed = line.trim();
-            if (trimmed.length() > 1 || (trimmed.length() == 1 && Character.isLetterOrDigit(trimmed.charAt(0)))) {
-                sb.append(trimmed).append("\n");
-            }
+            if (trimmed.isEmpty()) continue;
+
+            // 3. Picture Filter: Ignore lines that are just a string of symbols 
+            // Real text usually contains at least some letters or digits.
+            if (!containsAlphaNumeric(trimmed)) continue;
+
+            // 4. Density Check: If a line is too short and has no letters, it's likely noise
+            if (trimmed.length() < 3 && !Character.isLetterOrDigit(trimmed.charAt(0))) continue;
+
+            sb.append(trimmed).append("\n");
         }
         
         return sb.toString().trim();
     }
 
+    private static boolean containsAlphaNumeric(String s) {
+        for (int i = 0; i < s.length(); i++) {
+            if (Character.isLetterOrDigit(s.charAt(i))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public static void downloadAllLanguages() {
         RemoteModelManager modelManager = RemoteModelManager.getInstance();
         DownloadConditions conditions = new DownloadConditions.Builder()
-                .requireWifi() // Recommended to avoid heavy data usage
+                .requireWifi()
                 .build();
 
         List<String> allLanguages = TranslateLanguage.getAllLanguages();

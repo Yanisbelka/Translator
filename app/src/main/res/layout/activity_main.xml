@@ -14,31 +14,31 @@
     <View
         android:id="@+id/scanLine"
         android:layout_width="match_parent"
-        android:layout_height="2dp"
-        android:background="#80FFFFFF"
+        android:layout_height="3dp"
+        android:background="@drawable/bg_scan_line"
         android:visibility="gone"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <!-- Top Status Overlay -->
-    <View
+    <!-- Top Navigation Bar -->
+    <RelativeLayout
+        android:id="@+id/top_bar"
         android:layout_width="match_parent"
-        android:layout_height="120dp"
+        android:layout_height="80dp"
+        android:paddingTop="12dp"
+        android:paddingHorizontal="16dp"
         android:background="@drawable/bg_gradient_top"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toTopOf="parent">
 
-    <ImageButton
-        android:id="@+id/btnBack"
-        android:layout_width="48dp"
-        android:layout_height="48dp"
-        android:layout_margin="20dp"
-        android:src="@android:drawable/ic_menu_revert"
-        android:background="@drawable/bg_bubble"
-        android:backgroundTint="#4D000000"
-        android:padding="12dp"
-        android:contentDescription="Go Back"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:tint="#FFFFFF" />
+        <ImageButton
+            android:id="@+id/btnBack"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_centerVertical="true"
+            android:src="@android:drawable/ic_menu_revert"
+            android:background="@drawable/bg_glass_circle"
+            android:padding="12dp"
+            app:tint="#FFFFFF" />
+    </RelativeLayout>
 
     <ImageButton
         android:id="@+id/btnFlashlight"
@@ -57,15 +57,15 @@
     <TextView
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Live Lens"
+        android:text="Vision Capture"
         android:textColor="#FFFFFF"
         android:textSize="18sp"
         android:fontFamily="sans-serif-medium"
         android:letterSpacing="0.05"
-        app:layout_constraintBottom_toBottomOf="@id/btnBack"
+        app:layout_constraintBottom_toBottomOf="@id/top_bar"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="@id/btnBack" />
+        app:layout_constraintTop_toTopOf="@id/top_bar" />
 
     <!-- Bottom Controls Overlay -->
     <View

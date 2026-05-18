@@ -89,7 +89,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="📸 Camera Scan"
+                    android:text="📸 Vision Capture"
                     android:textColor="?android:attr/textColorPrimary"
                     android:textSize="20sp"
                     android:textStyle="bold" />
@@ -144,7 +144,7 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="✨ Screen Magic"
+                    android:text="✨ Screen Capture"
                     android:textColor="?android:attr/textColorPrimary"
                     android:textSize="20sp"
                     android:textStyle="bold" />
