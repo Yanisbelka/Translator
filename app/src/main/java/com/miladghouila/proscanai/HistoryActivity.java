@@ -29,7 +29,7 @@ public class HistoryActivity extends AppCompatActivity {
         recyclerView = findViewById(R.id.recyclerHistory);
         emptyView = findViewById(R.id.layoutEmpty);
         TabLayout tabLayout = findViewById(R.id.tabLayout);
-        
+
         tabLayout.addOnTabSelectedListener(new TabLayout.OnTabSelectedListener() {
             @Override
             public void onTabSelected(TabLayout.Tab tab) {
@@ -45,8 +45,8 @@ public class HistoryActivity extends AppCompatActivity {
         findViewById(R.id.btnBack).setOnClickListener(v -> finish());
         
         findViewById(R.id.btnExport).setOnClickListener(v -> {
-            List<String> items = showingFavorites ? 
-                HistoryManager.getFavorites(this) : 
+            List<String> items = showingFavorites ?
+                HistoryManager.getFavorites(this) :
                 HistoryManager.getHistory(this);
                 
             if (items.isEmpty()) {
@@ -81,8 +81,8 @@ public class HistoryActivity extends AppCompatActivity {
     }
 
     private void loadHistory() {
-        List<String> items = showingFavorites ? 
-                HistoryManager.getFavorites(this) : 
+        List<String> items = showingFavorites ?
+                HistoryManager.getFavorites(this) :
                 HistoryManager.getHistory(this);
                 
         if (items.isEmpty()) {
@@ -120,7 +120,7 @@ public class HistoryActivity extends AppCompatActivity {
             holder.txtText.setText(text);
             
             boolean isFav = HistoryManager.isFavorite(HistoryActivity.this, text);
-            holder.btnCopy.setImageResource(isFav ? 
+            holder.btnCopy.setImageResource(isFav ?
                 android.R.drawable.btn_star_big_on : 
                 android.R.drawable.ic_menu_edit);
 

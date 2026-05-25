@@ -17,7 +17,7 @@ public class HistoryManager {
 
     public static void saveTranslation(Context context, String text) {
         if (text == null || text.trim().isEmpty()) return;
-        
+
         SharedPreferences prefs = context.getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
         List<String> history = getHistory(context);
         

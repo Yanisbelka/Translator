@@ -67,7 +67,7 @@ public class MainActivity extends AppCompatActivity {
     private LanguageIdentifier languageIdentifier;
     private androidx.camera.core.Camera camera;
     private boolean isFlashlightOn = false;
-    private final androidx.activity.result.ActivityResultLauncher<String> galleryLauncher = 
+    private final androidx.activity.result.ActivityResultLauncher<String> galleryLauncher =
         registerForActivityResult(new androidx.activity.result.contract.ActivityResultContracts.GetContent(), uri -> {
             if (uri != null) {
                 processGalleryImage(uri);
@@ -127,10 +127,10 @@ public class MainActivity extends AppCompatActivity {
             if (!text.isEmpty()) {
                 // Professional TTS Configuration
                 java.util.Locale locale = new java.util.Locale(targetLanguage);
-                
+
                 // Special handling for scripts that need specific locales for better quality
                 if (targetLanguage.equals("zh")) locale = java.util.Locale.SIMPLIFIED_CHINESE;
-                
+
                 textToSpeech.setLanguage(locale);
                 textToSpeech.setPitch(1.0f);
                 textToSpeech.setSpeechRate(0.95f); // Slightly slower for better clarity
@@ -139,7 +139,7 @@ public class MainActivity extends AppCompatActivity {
                 if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
                     Toast.makeText(this, "Optimized voice not found. Using system default.", Toast.LENGTH_SHORT).show();
                 }
-                
+
                 textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, "LinguScanTTS");
             }
         });
@@ -515,7 +515,7 @@ public class MainActivity extends AppCompatActivity {
 
         // Use high-quality block translation with verification enabled if not AUTO
         boolean verify = !sourceCode.equalsIgnoreCase("auto");
-        
+
         TranslationManager tm = new TranslationManager(); // Temporary manager or reuse instance
         tm.translate(input, sourceCode, targetLanguage, verify, result -> {
             String finalResult = result.trim();
