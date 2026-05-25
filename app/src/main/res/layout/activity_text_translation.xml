@@ -47,14 +47,14 @@
             android:orientation="vertical"
             android:padding="20dp">
 
-            <!-- Source Input Card -->
             <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardInput"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 app:cardCornerRadius="24dp"
-                app:cardElevation="0dp"
+                app:cardElevation="2dp"
                 app:strokeWidth="1dp"
-                app:strokeColor="?attr/colorOutlineVariant"
+                app:strokeColor="@color/primary"
                 app:cardBackgroundColor="?attr/colorSurface">
 
                 <RelativeLayout
@@ -87,17 +87,21 @@
                             android:id="@+id/btnSpeakSource"
                             android:layout_width="44dp"
                             android:layout_height="44dp"
-                            android:background="?attr/selectableItemBackgroundBorderless"
+                            android:background="@drawable/bg_glass_circle"
                             android:src="@android:drawable/ic_btn_speak_now"
-                            app:tint="?android:attr/textColorSecondary" />
+                            android:padding="8dp"
+                            app:tint="@color/primary" />
+
+                        <View android:layout_width="8dp" android:layout_height="1dp" />
 
                         <ImageButton
                             android:id="@+id/btnClearText"
                             android:layout_width="44dp"
                             android:layout_height="44dp"
-                            android:background="?attr/selectableItemBackgroundBorderless"
+                            android:background="@drawable/bg_glass_circle"
                             android:src="@android:drawable/ic_menu_close_clear_cancel"
-                            app:tint="?android:attr/textColorSecondary" />
+                            android:padding="8dp"
+                            app:tint="@color/primary" />
                     </LinearLayout>
                 </RelativeLayout>
             </com.google.android.material.card.MaterialCardView>
@@ -105,7 +109,7 @@
             <!-- Language Selection Bar -->
             <com.google.android.material.card.MaterialCardView
                 android:layout_width="match_parent"
-                android:layout_height="56dp"
+                android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
                 app:cardCornerRadius="28dp"
                 app:cardElevation="2dp"
@@ -113,7 +117,7 @@
 
                 <LinearLayout
                     android:layout_width="match_parent"
-                    android:layout_height="match_parent"
+                    android:layout_height="56dp"
                     android:gravity="center"
                     android:orientation="horizontal"
                     android:paddingHorizontal="16dp">
@@ -124,15 +128,17 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:background="@android:color/transparent"
-                        android:gravity="center" />
+                        android:gravity="center"
+                        android:dropDownWidth="match_parent" />
 
                     <ImageButton
                         android:id="@+id/btnSwap"
-                        android:layout_width="32dp"
-                        android:layout_height="32dp"
+                        android:layout_width="44dp"
+                        android:layout_height="44dp"
                         android:layout_marginHorizontal="8dp"
                         android:background="?attr/selectableItemBackgroundBorderless"
                         android:src="@android:drawable/ic_popup_sync"
+                        android:padding="8dp"
                         app:tint="@color/primary" />
 
                     <Spinner
@@ -141,7 +147,8 @@
                         android:layout_height="wrap_content"
                         android:layout_weight="1"
                         android:background="@android:color/transparent"
-                        android:gravity="center" />
+                        android:gravity="center"
+                        android:dropDownWidth="match_parent" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
@@ -197,9 +204,10 @@
                             android:id="@+id/btnSpeak"
                             android:layout_width="44dp"
                             android:layout_height="44dp"
-                            android:background="?attr/selectableItemBackgroundBorderless"
+                            android:background="@drawable/bg_glass_circle"
                             android:src="@android:drawable/ic_btn_speak_now"
-                            app:tint="?attr/colorOnSecondaryContainer" />
+                            android:padding="8dp"
+                            app:tint="@color/primary" />
 
                         <View
                             android:layout_width="12dp"
@@ -209,9 +217,10 @@
                             android:id="@+id/btnCopy"
                             android:layout_width="44dp"
                             android:layout_height="44dp"
-                            android:background="?attr/selectableItemBackgroundBorderless"
+                            android:background="@drawable/bg_glass_circle"
                             android:src="@android:drawable/ic_menu_edit"
-                            app:tint="?attr/colorOnSecondaryContainer" />
+                            android:padding="8dp"
+                            app:tint="@color/primary" />
                     </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>

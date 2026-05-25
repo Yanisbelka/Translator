@@ -26,8 +26,8 @@ public class FloatingUIManager {
     public interface UIActionListener {
         void onTranslateClicked();
         void onScanModeChanged(boolean isFullScreen);
-        void onOcrModeChanged();
         void onLanguageSelected(String code);
+        void onSourceLanguageSelected(String code);
         void onBackClicked();
         void onHistoryClicked();
         void onCopyClicked(String text);
@@ -41,8 +41,8 @@ public class FloatingUIManager {
     private View mainLayout, selectionBox, bubbleView;
     private WindowManager.LayoutParams mainParams, boxParams, bubbleParams;
 
-    private TextView textResult, txtCurrentLang;
-    private Spinner languageSpinner;
+    private TextView textResult, txtCurrentLang, txtSourceLang;
+    private Spinner languageSpinner, sourceSpinner;
     private View cardResult;
 
     private int screenWidth, screenHeight;
@@ -112,14 +112,15 @@ public class FloatingUIManager {
         textResult = mainLayout.findViewById(R.id.textResult);
         cardResult = mainLayout.findViewById(R.id.cardResult);
         txtCurrentLang = mainLayout.findViewById(R.id.txtCurrentLang);
+        txtSourceLang = mainLayout.findViewById(R.id.txtSourceLang);
         languageSpinner = mainLayout.findViewById(R.id.languageSpinner);
+        sourceSpinner = mainLayout.findViewById(R.id.sourceSpinner);
         View btnTranslate = mainLayout.findViewById(R.id.btnTranslate);
         View btnLanguage = mainLayout.findViewById(R.id.btnLanguage);
         View btnHistory = mainLayout.findViewById(R.id.btnHistory);
         ImageButton btnBack = mainLayout.findViewById(R.id.btnBack);
-        View btnOcrScript = mainLayout.findViewById(R.id.btnOcrScript);
         View btnScanMode = mainLayout.findViewById(R.id.btnScanMode);
-        ImageView imgScanMode = mainLayout.findViewById(R.id.imgScanMode);
+        ImageView imgScanMode = mainLayout.findViewById(R.id.id_imgScanMode);
         View btnCopyResult = mainLayout.findViewById(R.id.btnCopyResult);
         View btnSpeakResult = mainLayout.findViewById(R.id.btnSpeakResult);
 
@@ -156,16 +157,20 @@ public class FloatingUIManager {
             listener.onScanModeChanged(isFullScreenMode);
         });
 
-        btnOcrScript.setOnClickListener(v -> listener.onOcrModeChanged());
-
         btnBack.setOnClickListener(v -> listener.onBackClicked());
 
         List<LanguageUtils.LanguageItem> allLanguages = LanguageUtils.getSupportedLanguages(false);
+        List<LanguageUtils.LanguageItem> sourceLanguages = LanguageUtils.getSupportedLanguages(true);
+
         ArrayAdapter<LanguageUtils.LanguageItem> adapter = new ArrayAdapter<>(contextThemeWrapper, R.layout.spinner_item, allLanguages);
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         languageSpinner.setAdapter(adapter);
 
-        // Default to French
+        ArrayAdapter<LanguageUtils.LanguageItem> sourceAdapter = new ArrayAdapter<>(contextThemeWrapper, R.layout.spinner_item, sourceLanguages);
+        sourceAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        sourceSpinner.setAdapter(sourceAdapter);
+
+        // Default to French target, AUTO source
         for (int i = 0; i < allLanguages.size(); i++) {
             if (allLanguages.get(i).code.equals("fr")) {
                 languageSpinner.setSelection(i);
@@ -173,6 +178,7 @@ public class FloatingUIManager {
                 break;
             }
         }
+        sourceSpinner.setSelection(0);
 
         languageSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
@@ -201,14 +207,58 @@ public class FloatingUIManager {
             }
         });
 
+        sourceSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                String sourceCode = sourceLanguages.get(position).code;
+                if (txtSourceLang != null) {
+                    txtSourceLang.setText(sourceCode.equalsIgnoreCase("auto") ? "AUTO" : sourceCode.toUpperCase());
+                }
+                listener.onSourceLanguageSelected(sourceCode);
+
+                mainParams.flags |= WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE;
+                mainParams.flags |= WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM;
+                windowManager.updateViewLayout(mainLayout, mainParams);
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+                mainParams.flags |= WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE;
+                mainParams.flags |= WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM;
+                windowManager.updateViewLayout(mainLayout, mainParams);
+            }
+        });
+
         btnLanguage.setOnClickListener(v -> {
             // Enable focus so Spinner can open
             mainParams.flags &= ~WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE;
             mainParams.flags &= ~WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM;
-
             windowManager.updateViewLayout(mainLayout, mainParams);
 
-            languageSpinner.post(() -> languageSpinner.performClick());
+            androidx.appcompat.app.AlertDialog dialog = new androidx.appcompat.app.AlertDialog.Builder(contextThemeWrapper)
+                .setTitle("Select Translation Pair")
+                .setItems(new String[]{"Source Language: " + txtSourceLang.getText(), "Target Language: " + txtCurrentLang.getText()}, (d, which) -> {
+                    if (which == 0) sourceSpinner.performClick();
+                    else languageSpinner.performClick();
+                })
+                .setOnCancelListener(d -> {
+                    mainParams.flags |= WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE;
+                    mainParams.flags |= WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM;
+                    windowManager.updateViewLayout(mainLayout, mainParams);
+                })
+                .create();
+            
+            // Critical: Set window type for Service-based dialog
+            android.view.Window window = dialog.getWindow();
+            if (window != null) {
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    window.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY);
+                } else {
+                    window.setType(WindowManager.LayoutParams.TYPE_SYSTEM_ALERT);
+                }
+            }
+            
+            dialog.show();
         });
 
         btnHistory.setOnClickListener(v -> listener.onHistoryClicked());
@@ -372,7 +422,11 @@ public class FloatingUIManager {
     }
 
     public void setStatusText(String text) {
-        textResult.setText(text);
+        if (textResult != null) {
+            textResult.setTextDirection(View.TEXT_DIRECTION_FIRST_STRONG);
+            textResult.setTextAlignment(View.TEXT_ALIGNMENT_VIEW_START);
+            textResult.setText(text);
+        }
         cardResult.setVisibility(View.VISIBLE);
     }
 

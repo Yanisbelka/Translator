@@ -21,6 +21,7 @@ import android.widget.Toast;
 import androidx.core.app.NotificationCompat;
 
 import com.google.mlkit.nl.translate.TranslateLanguage;
+import com.google.mlkit.vision.common.InputImage;
 import com.google.mlkit.vision.text.Text;
 
 import java.util.Locale;
@@ -36,8 +37,8 @@ public class FloatingControlService extends Service implements FloatingUIManager
     private MediaProjection mediaProjection;
     private TextToSpeech tts;
 
+    private String sourceLanguage = "auto";
     private String targetLanguage = TranslateLanguage.FRENCH;
-    private int currentOcrMode = 0;
     private boolean isFullScreenMode = true;
 
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
@@ -63,19 +64,21 @@ public class FloatingControlService extends Service implements FloatingUIManager
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        // Essential: Setup notification and foreground service BEFORE anything else
+        // especially on Android 14+ to avoid SecurityException/Token issues.
+        setupNotification();
+
         if (intent != null && intent.hasExtra("CODE")) {
             int resultCode = intent.getIntExtra("CODE", -1);
             Intent resultData = intent.getParcelableExtra("DATA");
 
-            // 1. Setup notification first (requirement for foreground)
-            setupNotification();
-
-            // 2. Obtain MediaProjection immediately
             if (resultData != null) {
                 try {
+                    // Stop any existing projection to refresh the token
                     if (mediaProjection != null) {
                         mediaProjection.stop();
                     }
+                    
                     mediaProjection = projectionManager.getMediaProjection(resultCode, resultData);
                     
                     if (mediaProjection != null) {
@@ -88,11 +91,12 @@ public class FloatingControlService extends Service implements FloatingUIManager
                             }
                         }, mainHandler);
 
-                        // 3. START CAPTURE IMMEDIATELY to avoid Android 14 timeout
                         screenCaptureManager.initPersistentCapture(mediaProjection, mainHandler);
                     }
+                } catch (SecurityException e) {
+                    Toast.makeText(this, "Permission token invalid. Please re-enable from the app.", Toast.LENGTH_LONG).show();
                 } catch (Exception e) {
-                    Toast.makeText(this, "System blocked screen access. Please restart Screen Magic.", Toast.LENGTH_LONG).show();
+                    Toast.makeText(this, "Screen capture error: " + e.getMessage(), Toast.LENGTH_LONG).show();
                 }
             }
         }
@@ -138,7 +142,6 @@ public class FloatingControlService extends Service implements FloatingUIManager
         uiManager.setStatusText("Reading screen...");
         uiManager.hideUIForCapture();
 
-        // Use the persistent frame grabber
         screenCaptureManager.captureCurrentFrame(new ScreenCaptureManager.CaptureCallback() {
             @Override
             public void onBitmapCaptured(Bitmap bitmap) {
@@ -173,14 +176,22 @@ public class FloatingControlService extends Service implements FloatingUIManager
                 if (inputBitmap != fullBitmap) fullBitmap.recycle();
             }
 
-            ocrManager.processImage(inputBitmap, this::handleOcrSuccess, this::handleOcrFailure);
+            ocrManager.processWithVerification(InputImage.fromBitmap(inputBitmap, 0), this::handleOcrSuccess, this::handleOcrFailure);
         } catch (Exception e) {
             forceReset("Error: " + e.getMessage());
         }
     }
 
     private void handleOcrSuccess(Text text) {
-        String content = LanguageUtils.cleanTextForTranslation(text.getText());
+        // Smart Script Conflict Warning for Screen
+        String conflict = LanguageUtils.getScriptConflict(sourceLanguage, text);
+        if (conflict != null) {
+            mainHandler.post(() -> Toast.makeText(this, "⚠️ detected: " + conflict + ". Switch source to fix quality.", Toast.LENGTH_LONG).show());
+        }
+
+        // UNIVERSAL PIPELINE: Recognition -> Filtering -> Refinement
+        String content = LanguageUtils.processUniversalPipeline(text, sourceLanguage);
+
         if (content.isEmpty()) {
             forceReset("No text found on screen");
             return;
@@ -194,12 +205,19 @@ public class FloatingControlService extends Service implements FloatingUIManager
 
     private void translateText(String input) {
         uiManager.setStatusText("Translating...");
+
+        if (sourceLanguage != null && !sourceLanguage.equalsIgnoreCase("auto")) {
+            translationManager.translate(input, sourceLanguage, targetLanguage, true,
+                    this::handleTranslationSuccess, this::handleTranslationFailure);
+            return;
+        }
+
         translationManager.identifyLanguage(input, code -> {
             String source = code.equals("und") ? "en" : code;
-            translationManager.translate(input, source, targetLanguage,
+            translationManager.translate(input, source, targetLanguage, false,
                     this::handleTranslationSuccess, this::handleTranslationFailure);
         }, e -> {
-            translationManager.translate(input, "en", targetLanguage,
+            translationManager.translate(input, "en", targetLanguage, false,
                     this::handleTranslationSuccess, this::handleTranslationFailure);
         });
     }
@@ -228,23 +246,19 @@ public class FloatingControlService extends Service implements FloatingUIManager
     }
 
     @Override
-    public void onOcrModeChanged() {
-        currentOcrMode = (currentOcrMode + 1) % 5;
-        ocrManager.setMode(currentOcrMode);
-        String mode;
-        switch (currentOcrMode) {
-            case 1: mode = "Chinese"; break;
-            case 2: mode = "Japanese"; break;
-            case 3: mode = "Korean"; break;
-            case 4: mode = "Devanagari"; break;
-            default: mode = "Latin"; break;
+    public void onLanguageSelected(String code) {
+        targetLanguage = code;
+        if (ocrManager != null) {
+            ocrManager.setModeForSourceLanguage(code);
         }
-        Toast.makeText(this, "Mode: " + mode, Toast.LENGTH_SHORT).show();
     }
 
     @Override
-    public void onLanguageSelected(String code) {
-        targetLanguage = code;
+    public void onSourceLanguageSelected(String code) {
+        this.sourceLanguage = code;
+        if (ocrManager != null) {
+            ocrManager.setModeForSourceLanguage(code);
+        }
     }
 
     @Override
@@ -268,9 +282,17 @@ public class FloatingControlService extends Service implements FloatingUIManager
 
     @Override
     public void onSpeakClicked(String text) {
-        if (tts != null) {
-            tts.setLanguage(new Locale(targetLanguage));
-            tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, null);
+        if (tts != null && text != null && !text.isEmpty()) {
+            java.util.Locale locale = new java.util.Locale(targetLanguage);
+            
+            // Script-specific optimization for higher quality voices
+            if (targetLanguage.equals("zh")) locale = java.util.Locale.SIMPLIFIED_CHINESE;
+            
+            tts.setLanguage(locale);
+            tts.setPitch(1.0f);
+            tts.setSpeechRate(0.95f); // Optimized for clarity in translations
+            
+            tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, "LinguScanScreenTTS");
         }
     }
 

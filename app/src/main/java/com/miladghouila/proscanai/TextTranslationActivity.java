@@ -165,7 +165,12 @@ public class TextTranslationActivity extends AppCompatActivity {
         String input = LanguageUtils.cleanTextForTranslation(editSource.getText().toString());
         if (input.isEmpty()) return;
 
-        cardResult.setVisibility(View.VISIBLE);
+        if (cardResult.getVisibility() != View.VISIBLE) {
+            cardResult.setAlpha(0f);
+            cardResult.setVisibility(View.VISIBLE);
+            cardResult.animate().alpha(1f).setDuration(400).start();
+        }
+
         if (sourceLangCode.equals("auto")) {
             detectAndTranslate(input);
         } else {

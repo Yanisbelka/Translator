@@ -1,41 +1,39 @@
+<!--
+  ~ Copyright (C) 2026 The Android Open Source Project
+  ~
+  ~ Licensed under the Apache License, Version 2.0 (the "License");
+  ~ you may not use this file except in compliance with the License.
+  ~ You may obtain a copy of the License at
+  ~
+  ~      http://www.apache.org/licenses/LICENSE-2.0
+  ~
+  ~ Unless required by applicable law or agreed to in writing, software
+  ~ distributed under the License is distributed on an "AS IS" BASIS,
+  ~ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  ~ See the License for the specific language governing permissions and
+  ~ limitations under the License.
+  -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-
-    <!-- The "L" and "S" interwoven into a Scanning Lens / Speech Bubble hybrid -->
-
-    <!-- Outer Ring (The Lens/Globe) -->
+    android:viewportWidth="512"
+    android:viewportHeight="512">
+  <group android:scaleX="0.58"
+      android:scaleY="0.58"
+      android:translateX="107.52"
+      android:translateY="107.52">
     <path
-        android:pathData="M54,24 C37.4,24 24,37.4 24,54 C24,70.6 37.4,84 54,84 C70.6,84 84,70.6 84,54"
-        android:strokeWidth="5"
-        android:strokeColor="#FFFFFF"
-        android:strokeLineCap="round"/>
-
-    <!-- The "L" (Base and vertical part of the logo) -->
+        android:pathData="M0,0h512v512h-512z"
+        android:fillColor="#7c4dff"/>
     <path
-        android:pathData="M44,40 L44,68 L64,68"
-        android:strokeWidth="7"
-        android:strokeColor="#FFFFFF"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"/>
-
-    <!-- The "S" (Curving like a speech bubble tail/flow) -->
+        android:pathData="M31,31L31,143L85,143L85,85h58L143,31ZM373,31v54h54v58h54L481,31ZM31,373L31,481L143,481L143,427L85,427v-54zM427,373v54h-54v54L481,481L481,373Z"
+        android:strokeWidth="1.125"
+        android:fillColor="#381e72"/>
     <path
-        android:pathData="M64,40 C64,35 78,35 78,45 C78,55 58,55 58,65 C58,75 72,75 72,70"
-        android:strokeWidth="7"
-        android:strokeColor="#00E5FF"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"/>
-
-    <!-- Scanning Flash/AI Sparkle -->
+        android:pathData="m93,93v326h286.48c99.37,0 99.37,-178.5 -17.56,-178.5H288.76C249.92,240.5 259.75,151.67 287,124c30.88,-31.35 132,0 132,0V93c0,0 -113.55,0 -163,0 -60.53,0 -26.13,178.5 33.37,178.5h70.52c89.19,0 92.31,116.5 0,116.5H124V93Z"
+        android:fillColor="#000000"/>
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M84,34 L81,37 L84,40 L87,37 Z"/>
-    <path
-        android:fillColor="#00E5FF"
-        android:pathData="M89,28 L87,30 L89,32 L91,30 Z"/>
-
+        android:pathData="m171.2,131l0,211.47c0,0 93.95,0 113.65,0 11.82,0 20.49,-1.64 28.37,-4.1 13.4,-4.92 20.49,-13.93 20.49,-27.87 0,-8.2 -3.15,-13.93 -10.25,-18.03 -6.31,-4.1 -17.34,-8.2 -31.53,-11.48l-24.43,-5.74c-24.43,-5.74 -40.98,-11.48 -50.44,-18.03 -15.76,-10.66 -22.86,-27.87 -22.86,-51.64 0,-21.31 7.88,-39.34 22.86,-53.28 14.97,-13.93 37.04,-21.31 66.2,-21.31l97.73,0l0,41.8L280.12,172.8c-12.61,-0 -22.86,2.46 -29.95,7.38 -7.09,4.92 -11.03,12.3 -11.03,21.31 0,8.2 3.94,14.75 11.03,18.85 4.73,2.46 14.97,5.74 30.74,9.84l40.2,9.84c17.34,4.1 30.74,9.84 39.41,17.21 13.4,11.48 20.49,27.05 20.49,48.36 0,22.13 -7.88,40.16 -24.43,54.1 -15.76,14.75 -38.62,21.31 -68.57,21.31L131,381L131,131"
+        android:fillColor="#ffffff"/>
+  </group>
 </vector>

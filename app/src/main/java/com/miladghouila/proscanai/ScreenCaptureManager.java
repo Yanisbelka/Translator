@@ -9,6 +9,7 @@ import android.media.Image;
 import android.media.ImageReader;
 import android.media.projection.MediaProjection;
 import android.os.Handler;
+import android.os.Looper;
 import android.util.DisplayMetrics;
 import android.view.WindowManager;
 
@@ -47,7 +48,8 @@ public class ScreenCaptureManager {
         stop(); // Cleanup any old session
         updateDisplayMetrics();
 
-        imageReader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2);
+        // Use 5 as max images for extra stability on high-resolution screens
+        imageReader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 5);
         virtualDisplay = mediaProjection.createVirtualDisplay(
                 "LinguScan_Persistent",
                 width,
@@ -61,20 +63,49 @@ public class ScreenCaptureManager {
     }
 
     /**
-     * Grabs the current frame from the persistent display.
+     * Grabs the current frame from the persistent display with an aggressive retry mechanism.
      */
-    public void captureCurrentFrame(CaptureCallback callback) {
-        if (imageReader == null) {
-            callback.onError("Capture session not initialized");
+    public void captureCurrentFrame(final CaptureCallback callback) {
+        if (imageReader == null || virtualDisplay == null) {
+            callback.onError("Capture session not initialized. Please restart Screen Magic.");
             return;
         }
 
-        Image image = imageReader.acquireLatestImage();
-        if (image == null) {
-            callback.onError("Screen capture is busy. Try again in a second.");
-            return;
+        attemptCapture(0, callback);
+    }
+
+    private void attemptCapture(final int count, final CaptureCallback callback) {
+        Image image = null;
+        try {
+            // First try to get the very latest frame
+            image = imageReader.acquireLatestImage();
+        } catch (Exception e) {
+            // Fallback for some device-specific states
         }
 
+        if (image != null) {
+            processCapturedImage(image, callback);
+        } else if (count < 8) {
+            // If latest is null, it means no new frames were pushed. 
+            // Retry with increasing delay (up to 1.2s total wait)
+            new Handler(Looper.getMainLooper()).postDelayed(() -> attemptCapture(count + 1, callback), 150);
+        } else {
+            // Last resort: try acquireNextImage which might have an older frame but is better than nothing
+            try {
+                image = imageReader.acquireNextImage();
+            } catch (Exception e) {
+                // Ignore
+            }
+
+            if (image != null) {
+                processCapturedImage(image, callback);
+            } else {
+                callback.onError("Screen buffer is empty. Ensure your screen is active and try again.");
+            }
+        }
+    }
+
+    private void processCapturedImage(Image image, CaptureCallback callback) {
         try {
             Bitmap bitmap = convertImage(image);
             if (bitmap != null) {

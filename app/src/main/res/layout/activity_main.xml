@@ -23,8 +23,10 @@
     <RelativeLayout
         android:id="@+id/top_bar"
         android:layout_width="match_parent"
-        android:layout_height="80dp"
+        android:layout_height="wrap_content"
+        android:minHeight="80dp"
         android:paddingTop="12dp"
+        android:paddingBottom="12dp"
         android:paddingHorizontal="16dp"
         android:background="@drawable/bg_gradient_top"
         app:layout_constraintTop_toTopOf="parent">
@@ -34,17 +36,27 @@
             android:layout_width="44dp"
             android:layout_height="44dp"
             android:layout_centerVertical="true"
-            android:src="@android:drawable/ic_menu_revert"
+            android:src="@android:drawable/ic_menu_close_clear_cancel"
             android:background="@drawable/bg_glass_circle"
             android:padding="12dp"
             app:tint="#FFFFFF" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerInParent="true"
+            android:text="Vision Capture"
+            android:textColor="#FFFFFF"
+            android:textSize="18sp"
+            android:fontFamily="sans-serif-medium"
+            android:letterSpacing="0.05" />
     </RelativeLayout>
 
     <ImageButton
         android:id="@+id/btnFlashlight"
         android:layout_width="48dp"
         android:layout_height="48dp"
-        android:layout_margin="20dp"
+        android:layout_margin="16dp"
         android:src="@android:drawable/btn_star_big_off"
         android:background="@drawable/bg_bubble"
         android:backgroundTint="#4D000000"
@@ -53,19 +65,6 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintTop_toTopOf="parent"
         app:tint="#FFFFFF" />
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Vision Capture"
-        android:textColor="#FFFFFF"
-        android:textSize="18sp"
-        android:fontFamily="sans-serif-medium"
-        android:letterSpacing="0.05"
-        app:layout_constraintBottom_toBottomOf="@id/top_bar"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="@id/top_bar" />
 
     <!-- Bottom Controls Overlay -->
     <View
@@ -82,11 +81,11 @@
         android:layout_marginHorizontal="20dp"
         android:layout_marginBottom="24dp"
         android:visibility="gone"
-        app:cardCornerRadius="28dp"
-        app:cardElevation="0dp"
-        app:strokeWidth="1dp"
-        app:strokeColor="#33FFFFFF"
-        app:cardBackgroundColor="#CC000000"
+        app:cardCornerRadius="32dp"
+        app:cardElevation="12dp"
+        app:strokeWidth="2dp"
+        app:strokeColor="@color/vibrant_purple"
+        app:cardBackgroundColor="@color/glass_bg"
         app:layout_constraintBottom_toTopOf="@+id/camera_menu_container"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
@@ -97,26 +96,64 @@
             android:orientation="vertical"
             android:padding="20dp">
 
-            <!-- Drag Handle for Resizing -->
-            <View
+            <!-- Drag Handle for Resizing (with larger touch area) -->
+            <FrameLayout
                 android:id="@+id/resizeHandle"
-                android:layout_width="40dp"
-                android:layout_height="4dp"
-                android:layout_gravity="center_horizontal"
-                android:layout_marginBottom="12dp"
-                android:background="#4DFFFFFF" />
+                android:layout_width="match_parent"
+                android:layout_height="32dp"
+                android:layout_marginBottom="4dp">
 
-            <TextView
-                android:layout_width="wrap_content"
+                <View
+                    android:layout_width="40dp"
+                    android:layout_height="4dp"
+                    android:layout_gravity="center"
+                    android:background="#4DFFFFFF"
+                    android:backgroundTint="#80FFFFFF" />
+            </FrameLayout>
+
+            <RelativeLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="Live Translation"
-                android:textColor="#80FFFFFF"
-                android:textSize="10sp"
-                android:fontFamily="sans-serif-medium"
-                android:textAllCaps="true"
-                android:letterSpacing="0.2"
-                android:layout_gravity="center_horizontal"
-                android:layout_marginBottom="12dp"/>
+                android:layout_marginBottom="8dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_centerVertical="true"
+                    android:text="Live Translation"
+                    android:textColor="#80FFFFFF"
+                    android:textSize="10sp"
+                    android:fontFamily="sans-serif-medium"
+                    android:textAllCaps="true"
+                    android:letterSpacing="0.2" />
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_alignParentEnd="true"
+                    android:orientation="horizontal">
+
+                    <ImageButton
+                        android:id="@+id/btnTTS"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:background="?android:attr/selectableItemBackgroundBorderless"
+                        android:padding="6dp"
+                        android:src="@android:drawable/ic_lock_silent_mode_off"
+                        app:tint="#80FFFFFF" />
+
+                    <View android:layout_width="8dp" android:layout_height="1dp" />
+
+                    <ImageButton
+                        android:id="@+id/btnCopy"
+                        android:layout_width="32dp"
+                        android:layout_height="32dp"
+                        android:background="?android:attr/selectableItemBackgroundBorderless"
+                        android:padding="6dp"
+                        android:src="@android:drawable/ic_menu_edit"
+                        app:tint="#80FFFFFF" />
+                </LinearLayout>
+            </RelativeLayout>
 
             <ScrollView
                 android:layout_width="match_parent"
@@ -129,9 +166,9 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:textColor="#FFFFFF"
-                    android:textSize="18sp"
+                    android:textSize="14sp"
                     android:text="Point camera at text..."
-                    android:lineSpacingExtra="4dp"
+                    android:lineSpacingExtra="3dp"
                     android:textAlignment="viewStart"
                     android:textDirection="firstStrong"
                     android:textIsSelectable="true" />
@@ -142,14 +179,15 @@
     <!-- Professional Menu Bar -->
     <LinearLayout
         android:id="@+id/camera_menu_container"
-        android:layout_width="wrap_content"
-        android:layout_height="80dp"
-        android:layout_marginBottom="48dp"
+        android:layout_width="match_parent"
+        android:layout_height="85dp"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginBottom="28dp"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:paddingHorizontal="24dp"
-        android:background="@drawable/bg_menu_item"
-        android:elevation="8dp"
+        android:paddingHorizontal="16dp"
+        android:background="@drawable/bg_menu_itemblack"
+        android:elevation="12dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent">
@@ -161,50 +199,50 @@
             android:background="@drawable/bg_language_selector"
             android:orientation="horizontal"
             android:gravity="center"
-            android:paddingHorizontal="12dp"
+            android:paddingHorizontal="14dp"
             android:clickable="true"
             android:focusable="true">
 
+            <TextView
+                android:id="@+id/txtSourceLang"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="AUTO"
+                android:textColor="@color/vibrant_purple"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
             <ImageView
-                android:layout_width="20dp"
-                android:layout_height="20dp"
-                android:src="@android:drawable/ic_dialog_info"
-                app:tint="#FFFFFF" />
+                android:layout_width="14dp"
+                android:layout_height="14dp"
+                android:layout_marginHorizontal="6dp"
+                android:src="@android:drawable/ic_menu_revert"
+                android:rotation="180"
+                app:tint="@color/vibrant_purple" />
 
             <TextView
                 android:id="@+id/txtCurrentLang"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
                 android:text="FR"
-                android:textColor="#FFFFFF"
-                android:textSize="13sp"
+                android:textColor="@color/vibrant_purple"
+                android:textSize="12sp"
                 android:textStyle="bold" />
         </LinearLayout>
 
-        <View android:layout_width="12dp" android:layout_height="match_parent" />
-
-        <ImageButton
-            android:id="@+id/btnOcrScript"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
-            android:src="@android:drawable/ic_menu_sort_alphabetically"
-            android:background="?android:attr/selectableItemBackgroundBorderless"
-            android:contentDescription="OCR Script"
-            app:tint="#FFFFFF" />
-
-        <View android:layout_width="12dp" android:layout_height="match_parent" />
+        <View android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" />
 
         <ImageButton
             android:id="@+id/btnGallery"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
             android:src="@android:drawable/ic_menu_gallery"
-            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:background="@drawable/bg_glass_circle"
             android:contentDescription="Gallery Import"
-            app:tint="#FFFFFF" />
+            android:padding="12dp"
+            app:tint="@color/vibrant_purple" />
 
-        <View android:layout_width="12dp" android:layout_height="match_parent" />
+        <View android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" />
 
         <ImageButton
             android:id="@+id/btnTranslate"
@@ -213,25 +251,34 @@
             android:src="@android:drawable/ic_menu_camera"
             android:background="@drawable/bg_circle_primary"
             android:scaleType="centerInside"
-            android:padding="20dp"
-            android:elevation="4dp"
+            android:padding="18dp"
+            android:elevation="16dp"
             android:contentDescription="Capture Translation"
             app:tint="#FFFFFF" />
 
-        <View android:layout_width="12dp" android:layout_height="match_parent" />
+        <View android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1.5" />
 
         <ImageButton
             android:id="@+id/btnHistory"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
             android:src="@android:drawable/ic_menu_recent_history"
-            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:background="@drawable/bg_glass_circle"
             android:contentDescription="History"
-            app:tint="#FFFFFF" />
+            android:padding="12dp"
+            app:tint="@color/vibrant_purple" />
     </LinearLayout>
 
     <Spinner
         android:id="@+id/languageSpinner"
+        android:layout_width="1dp"
+        android:layout_height="1dp"
+        android:visibility="invisible"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent" />
+
+    <Spinner
+        android:id="@+id/sourceSpinner"
         android:layout_width="1dp"
         android:layout_height="1dp"
         android:visibility="invisible"

@@ -20,7 +20,7 @@ import androidx.appcompat.app.AppCompatDelegate;
 public class StartActivity extends AppCompatActivity {
 
     View cameraButton, screenButton, textButton, archiveButton;
-    ImageButton btnThemeToggle;
+    ImageButton btnThemeToggle, btnExit;
     TextView btnContact;
     boolean isDarkMode;
 
@@ -43,6 +43,7 @@ public class StartActivity extends AppCompatActivity {
         screenButton = findViewById(R.id.screenButton);
         textButton = findViewById(R.id.textButton);
         btnThemeToggle = findViewById(R.id.btnThemeToggle);
+        btnExit = findViewById(R.id.btnExit);
         archiveButton = findViewById(R.id.archiveButton);
         btnContact = findViewById(R.id.btnContact);
 
@@ -120,6 +121,14 @@ public class StartActivity extends AppCompatActivity {
                 v.animate().scaleX(1f).scaleY(1f).setDuration(100).start();
                 Intent intent = new Intent(this, TextTranslationActivity.class);
                 startActivity(intent);
+            }).start();
+        });
+
+        // Exit App
+        btnExit.setOnClickListener(v -> {
+            v.animate().scaleX(0.95f).scaleY(0.95f).setDuration(100).withEndAction(() -> {
+                finishAffinity();
+                System.exit(0);
             }).start();
         });
     }
